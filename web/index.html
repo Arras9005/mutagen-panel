@@ -813,7 +813,8 @@
     busy = value;
     $('working').classList.toggle('on', value);
     document.querySelectorAll('header button[data-act]').forEach(function (b) { b.disabled = value; });
-    if (value) document.querySelectorAll('#cards button[data-act], #cards button[data-ui]').forEach(function (b) { b.disabled = true; });
+    // 卡片按钮忙碌时禁用,结束时立刻恢复,不要等下一次刷新重绘(否则刚做完一个操作马上点下一个会没反应)
+    document.querySelectorAll('#cards button[data-act], #cards button[data-ui]').forEach(function (b) { b.disabled = value; });
   }
 
   function dialogOpen() { return $('dlg').open || $('delDlg').open || $('srvDlg').open || $('grpDlg').open || $('askDlg').open || $('rmDlg').open; }
@@ -1415,6 +1416,13 @@
       .then(refresh);
   }
 
+  // 按钮、路径、输入框这类"要点击"的元素上按下鼠标时不允许开始拖拽:
+  // 否则点击时手稍微一抖(超过约 4 像素),浏览器会把它当成拖动卡片,点击就丢了
+  document.addEventListener('mousedown', function (e) {
+    var card = e.target.closest && e.target.closest('.card[data-id]');
+    if (!card) return;
+    card.draggable = !e.target.closest('button, a, input, select, textarea, [data-copy], [data-open], [data-browse]');
+  }, true);
   document.addEventListener('dragstart', function (e) {
     var card = e.target.closest && e.target.closest('.card[data-id]');
     if (!card) return;
