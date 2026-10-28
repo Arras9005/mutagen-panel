@@ -1,0 +1,31 @@
+{
+  "mutagen": "mutagen",
+  "host": "myserver",
+  "port": 8765,
+  "openBrowser": true,
+  "groups": ["示例项目"],
+  "sessions": [
+    {
+      "id": "mirror",
+      "name": "my-app-mirror",
+      "label": "代码镜像(服务器 → 本地,只读)",
+      "group": "示例项目",
+      "remotePath": "/data/project/my-app",
+      "local": "E:/mutagen/my-app",
+      "mode": "one-way-replica",
+      "ignoreVcs": false,
+      "ignore": ["node_modules", "target", "build", "*.log"]
+    },
+    {
+      "id": "exchange",
+      "name": "data-exchange",
+      "label": "数据交换(双向)",
+      "group": "示例项目",
+      "remotePath": "/data/exchange",
+      "local": "E:/mutagen/exchange",
+      "mode": "two-way-safe",
+      "ignoreVcs": true,
+      "ignore": ["node_modules", "target", "build", "*.log", "*.cache", ".cache/", "__pycache__/", ".idea/", ".vscode/", "/config.json"]
+    }
+  ]
+}

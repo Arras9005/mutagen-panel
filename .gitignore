@@ -1,0 +1,11 @@
+# 本机配置:含服务器地址、本地路径、令牌,每台电脑各用各的,绝不能提交
+config.json
+config.json.tmp
+
+node_modules/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

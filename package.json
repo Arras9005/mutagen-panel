@@ -1,0 +1,55 @@
+{
+  "name": "mutagen-panel",
+  "version": "0.1.0",
+  "description": "A local web dashboard for Mutagen: create, pause, flush and monitor sync sessions in the browser; add servers with a password once and use key login afterwards; groups, drag & drop, remote directory browser. 本机运行的 Mutagen 网页管理面板。",
+  "keywords": [
+    "mutagen",
+    "file-sync",
+    "ssh",
+    "dashboard",
+    "remote-development",
+    "sync",
+    "web-ui"
+  ],
+  "author": "Arra",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arras9005/mutagen-panel.git"
+  },
+  "homepage": "https://github.com/Arras9005/mutagen-panel#readme",
+  "bugs": {
+    "url": "https://github.com/Arras9005/mutagen-panel/issues"
+  },
+  "type": "module",
+  "bin": {
+    "mutagen-panel": "dist/server.js"
+  },
+  "files": [
+    "dist",
+    "web",
+    "config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/mutagen-test.ts && tsx src/config-test.ts && tsx src/servers-test.ts && tsx src/pull-test.ts && tsx src/remote-test.ts",
+    "verify": "npm run typecheck && npm run test",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run verify && npm run build"
+  },
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "@types/ssh2": "^1.15.6",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
