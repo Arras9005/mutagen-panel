@@ -38,6 +38,8 @@ assert.equal(resolveConfigFile("/opt/app", "/x/c.json", {}, "/home/u"), "/x/c.js
 assert.equal(resolveConfigFile("/opt/app", undefined, { PANEL_CONFIG: "/y/c.json" }, "/home/u"), "/y/c.json");
 assert.equal(resolveConfigFile("/usr/lib/node_modules/mutagen-panel", undefined, {}, "/home/u").replace(/\\/g, "/"), "/home/u/.mutagen-panel/config.json");
 assert.equal(resolveConfigFile("/opt/app", undefined, {}, "/home/u").replace(/\\/g, "/"), "/opt/app/config.json");
+// Windows 风格的包路径(反斜杠)同样识别为"通过 npm 安装"
+assert.match(resolveConfigFile("C:\\Users\\u\\AppData\\Roaming\\npm\\node_modules\\mutagen-panel", undefined, {}, "/home/u").replace(/\\/g, "/"), /\.mutagen-panel\/config\.json$/);
 assert.throws(() => parseConfig({ sessions: [session()] }), /没有 host/);
 assert.throws(() => parseConfig(base([session({ name: "bad name" })])), /会话名只能/);
 assert.throws(() => parseConfig(base([session({ name: "file_sync" })])), /会话名只能/);

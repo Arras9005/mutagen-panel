@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, normalize, sep } from "node:path";
+import { dirname, join, normalize } from "node:path";
 
 export const SYNC_MODES = ["one-way-replica", "one-way-safe", "two-way-safe", "two-way-resolved"] as const;
 export type SyncMode = (typeof SYNC_MODES)[number];
@@ -219,7 +219,8 @@ export function defaultConfig(): PanelConfig {
 export function resolveConfigFile(packageRoot: string, explicit?: string, env: Record<string, string | undefined> = process.env, home: string = homedir()): string {
   if (explicit) return explicit;
   if (env.PANEL_CONFIG) return env.PANEL_CONFIG;
-  return packageRoot.split(sep).includes("node_modules") ? join(home, ".mutagen-panel", "config.json") : join(packageRoot, "config.json");
+  // 两种分隔符都认:Windows 的包路径是反斜杠,测试和其他平台用正斜杠
+  return packageRoot.split(/[\\/]/).includes("node_modules") ? join(home, ".mutagen-panel", "config.json") : join(packageRoot, "config.json");
 }
 
 /** 配置文件不存在就写一份默认的;返回是否新建。 */
