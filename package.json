@@ -1,6 +1,6 @@
 {
   "name": "mutagen-panel",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A local web dashboard for Mutagen: create, pause, flush and monitor sync sessions in the browser; add servers with a password once and use key login afterwards; groups, drag & drop, remote directory browser. 本机运行的 Mutagen 网页管理面板。",
   "keywords": [
     "mutagen",
