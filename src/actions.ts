@@ -2,9 +2,10 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { parseConfig, parseServer, repairSessionNames, saveConfig, type PanelConfig, type ServerConfig, type SessionConfig } from "./config.js";
 import { buildExcludes, pullDirectory } from "./pull.js";
+import { compareFiles, diffFile, type DiffSides, type FileCompare, type FileDiff } from "./files.js";
 import { listRemote, type RemoteListing } from "./remote.js";
 import { removeServerEntry, resolveEndpoint, setupServer, testServer } from "./servers.js";
-import { checkSsh, parseList, run, sameEndpoint, type ParsedSession, type RunResult } from "./mutagen.js";
+import { checkSsh, parseConflicts, parseList, type ConflictItem, run, sameEndpoint, type ParsedSession, type RunResult } from "./mutagen.js";
 
 export interface ActionResult {
   ok: boolean;
@@ -26,6 +27,8 @@ export interface SessionView extends Partial<ParsedSession> {
   /** 排除规则;"覆盖本地"不会碰这些文件。 */
   ignore: string[];
   ignoreVcs: boolean;
+  /** 冲突的具体文件;没有冲突时为空。 */
+  conflicts: ConflictItem[];
   exists: boolean;
   /** 配置里的服务器/本地路径与已创建会话实际使用的不一致时的说明;一致则为空。 */
   drift: string;
@@ -148,6 +151,35 @@ export class Panel {
     return listRemote(host, path);
   }
 
+  /** 对比某个会话两端的文件列表(只读);排除规则与同步一致。 */
+  compareSessionFiles(id: string): Promise<FileCompare> {
+    // 同一个会话的读取正在进行时(比如连点"刷新"),共用同一次读取,不重复跑 ssh 和遍历
+    const running = this.compareInflight.get(id);
+    if (running) return running;
+    const task = this.doCompareSessionFiles(id).finally(() => this.compareInflight.delete(id));
+    this.compareInflight.set(id, task);
+    return task;
+  }
+
+  private readonly compareInflight = new Map<string, Promise<FileCompare>>();
+
+  private async doCompareSessionFiles(id: string): Promise<FileCompare> {
+    const session = this.config.sessions.find((s) => s.id === id);
+    if (!session) {
+      return { ok: false, out: `未知会话:${id}`, rows: [], counts: { "server-only": 0, "local-only": 0, "size-diff": 0, "same-size": 0 }, serverCount: 0, localCount: 0, truncated: false, localMissing: false, timing: { serverMs: 0, localMs: 0, totalMs: 0 } };
+    }
+    return compareFiles(session.host, session.remotePath, session.local, buildExcludes(session.ignore, session.ignoreVcs));
+  }
+
+  /** 读取并对比某个文件在两端的内容;路径只能是会话目录里的相对路径。 */
+  async diffSessionFile(id: string, path: string, sides: DiffSides = "both"): Promise<FileDiff> {
+    const session = this.config.sessions.find((s) => s.id === id);
+    if (!session) {
+      return { ok: false, out: `未知会话:${id}`, path, server: { exists: false, size: 0 }, local: { exists: false, size: 0 }, binary: false, tooLarge: false, identical: false, eolOnly: false, eolIgnored: false, added: 0, removed: 0, truncated: false, hunks: [], text: "", skipped: null };
+    }
+    return diffFile(session.host, session.remotePath, session.local, path, sides);
+  }
+
   testServer(alias: string): Promise<ActionResult> {
     return this.getServers().aliases.includes(alias)
       ? testServer(alias)
@@ -163,7 +195,20 @@ export class Panel {
     return run(this.config.mutagen, args, timeoutMs);
   }
 
-  async getState(): Promise<PanelState> {
+  /** 同时到达的状态请求(多个页面、或上一次还没算完)共用同一次计算,不重复调用 Mutagen。 */
+  getState(): Promise<PanelState> {
+    this.stateInflight ??= this.computeState().finally(() => {
+      this.stateInflight = undefined;
+    });
+    return this.stateInflight;
+  }
+
+  private stateInflight: Promise<PanelState> | undefined;
+  /** 冲突文件列表的缓存:冲突没变化时不必每次轮询都再调一次 `mutagen sync list --long`。 */
+  private readonly conflictCache = new Map<string, { signature: string; at: number; items: ConflictItem[] }>();
+  private static readonly CONFLICT_TTL_MS = 15_000;
+
+  private async computeState(): Promise<PanelState> {
     const list = await this.mutagen(["sync", "list"], 20_000);
     if (!list.ok && list.code === -1) {
       return { groups: this.config.groups, sessions: [], others: [], listError: "", error: list.out };
@@ -171,6 +216,23 @@ export class Panel {
     const found = list.ok ? parseList(list.stdout) : {};
     const hosts = [...new Set(this.config.sessions.map((s) => s.host))];
     const endpoints = new Map(await Promise.all(hosts.map(async (h) => [h, await resolveEndpoint(h)] as const)));
+    // 普通的 sync list 只有冲突数量;有冲突的会话再取一次 --long 才能知道是哪些文件
+    const conflictFiles = new Map<string, ConflictItem[]>(
+      await Promise.all(
+        this.config.sessions
+          .filter((s) => found[s.name]?.warns.some((w) => /^conflicts?:\s*[1-9]/i.test(w)))
+          .map(async (s) => {
+            // 冲突数量等没变、且在有效期内,直接用缓存
+            const signature = `${found[s.name]?.status ?? ""}|${(found[s.name]?.warns ?? []).join("|")}`;
+            const cached = this.conflictCache.get(s.name);
+            if (cached && cached.signature === signature && Date.now() - cached.at < Panel.CONFLICT_TTL_MS) return [s.name, cached.items] as const;
+            const long = await this.mutagen(["sync", "list", "--long", s.name], 20_000);
+            const items = long.ok ? parseConflicts(long.stdout) : [];
+            this.conflictCache.set(s.name, { signature, at: Date.now(), items });
+            return [s.name, items] as const;
+          }),
+      ),
+    );
     const sessions = this.config.sessions.map((s): SessionView => {
       const parsed = found[s.name];
       return {
@@ -185,6 +247,7 @@ export class Panel {
         local: s.local,
         ignore: s.ignore,
         ignoreVcs: s.ignoreVcs,
+        conflicts: conflictFiles.get(s.name) ?? [],
         exists: parsed !== undefined,
         drift: parsed ? describeDrift(s, parsed) : "",
         ...parsed,
@@ -201,6 +264,7 @@ export class Panel {
 
   async perform(request: ActionRequest): Promise<ActionResult> {
     const { action, id } = request;
+    this.conflictCache.clear(); // 同步、重建、删除等操作之后冲突情况可能已经变了
     if (action === "env") return this.checkEnvironment();
     if (action === "register" || action === "unregister") return this.mutagen(["daemon", action], 30_000);
 

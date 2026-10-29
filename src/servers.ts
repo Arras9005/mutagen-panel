@@ -1,4 +1,3 @@
-import { Client } from "ssh2";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -99,7 +98,9 @@ function describeError(error: Error & { level?: string }): string {
 }
 
 /** 用密码登录并把公钥追加到 authorized_keys(已存在则不重复写)。密码只在这次连接里使用。 */
-function installKey(server: ServerConfig, password: string, publicKey: string): Promise<void> {
+async function installKey(server: ServerConfig, password: string, publicKey: string): Promise<void> {
+  // ssh2 加载要 100 多毫秒,而且只有"用密码添加服务器"时才用到,所以按需加载,不拖慢每次启动
+  const { Client } = await import("ssh2");
   return new Promise((resolve, reject) => {
     const conn = new Client();
     const command = `sh -c "umask 077; mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && { grep -qxF '${publicKey}' ~/.ssh/authorized_keys || echo '${publicKey}' >> ~/.ssh/authorized_keys; }"`;

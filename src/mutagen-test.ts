@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseList, sameEndpoint } from "./mutagen.js";
+import { parseList, sameEndpoint, parseConflicts } from "./mutagen.js";
 
 const sample = `-------------------------------------------------------------------------------
 Name: bdp-view
@@ -60,5 +60,24 @@ assert.deepEqual(parseList("No synchronization sessions found"), {});
 assert.equal(sameEndpoint("E:/work/mutagen_data/", "E:\\work\\mutagen_data"), true);
 assert.equal(sameEndpoint("myserver:/data/a", "myserver:/data/b"), false);
 assert.equal(sameEndpoint("myserver:/data/a", undefined), false);
+
+// 冲突文件解析(样本来自真实的 mutagen sync list --long 输出)
+{
+  const sample = [
+    "Status: Watching for changes",
+    "Conflicts:",
+    "\t(alpha) config.json (<non-existent> -> File (7aceee84ccbaa3059d426b4f490114078f522cbd))",
+    "\t(beta)  config.json (<non-existent> -> File (82eebc858af0ec65a340f8c9d34d4d6d2a7dc40e))",
+    "\t(alpha) docs/my file (1).md (File (aaa) -> File (bbb))",
+    "\t(beta)  docs/my file (1).md (File (aaa) -> <non-existent>)",
+    "Status: Watching for changes",
+  ].join("\n");
+  const conflicts = parseConflicts(sample);
+  assert.equal(conflicts.length, 2);
+  assert.deepEqual(conflicts[0], { path: "config.json", alpha: "新增文件", beta: "新增文件" });
+  assert.deepEqual(conflicts[1], { path: "docs/my file (1).md", alpha: "修改了文件", beta: "删除了文件" });
+  assert.deepEqual(parseConflicts("Status: Watching for changes\nConflicts: 1\n"), []);
+  assert.deepEqual(parseConflicts(""), []);
+}
 
 console.log("mutagen-test: ok");

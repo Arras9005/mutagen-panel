@@ -246,6 +246,12 @@
   .notes { margin-top: 12px; display: grid; gap: 8px; }
   .note { padding: 9px 12px; border-radius: var(--ui-radius-control); font-size: 14px; word-break: break-all; border: 1px solid; display: flex; align-items: center; gap: 10px; }
   .note svg { width: 16px; height: 16px; flex: none; }
+  .note .grow { min-width: 0; }
+  .cf-list { margin: 8px 0 2px; display: grid; gap: 6px; }
+  .cf-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .cf-path { font: 600 14px/22px Consolas, "SFMono-Regular", monospace; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, currentColor 10%, transparent); cursor: copy; overflow-wrap: anywhere; }
+  .cf-desc { font-size: 13px; opacity: .85; }
+  .cf-hint { margin-top: 8px; font-size: 13px; opacity: .85; }
   .note.warn { color: var(--ui-warning-text); background: var(--ui-warning-bg); border-color: var(--ui-warning-border); }
   .note.busy { color: var(--ui-info-text); background: var(--ui-info-bg); border-color: var(--ui-info-border); }
   .prog { margin-top: 16px; }
@@ -388,6 +394,84 @@
   .rm-foot input { accent-color: var(--ui-action); }
   .rm-foot label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin-left: auto; color: var(--ui-text); }
   @media (max-width: 640px) { .rm-row { grid-template-columns: 22px minmax(0, 1fr) 70px; } .rm-time { display: none; } }
+  /* ---------- 冲突列表 / 详情输出 ---------- */
+  .dt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .dt-chip { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .dt-chip em { font-style: normal; opacity: .7; }
+  .dt-chip.on { background: var(--ui-info-bg); border-color: var(--ui-brand); color: var(--ui-accent-text); }
+  .dt-head, .dt-row { display: grid; grid-template-columns: minmax(0, 1fr) 130px 130px; gap: 12px; padding: 8px 14px; align-items: baseline; }
+  .dt-head { position: sticky; top: 0; z-index: 1; background: var(--ui-surface-soft); border-bottom: 1px solid var(--ui-border); font-size: 13px; color: var(--ui-text-secondary); }
+  .dt-row { border-bottom: 1px solid var(--ui-border); font-size: 14px; }
+  .dt-row:last-child { border-bottom: 0; }
+  .dt-row .p { font: 14px/22px Consolas, "SFMono-Regular", monospace; overflow-wrap: anywhere; cursor: copy; border-radius: 4px; }
+  .dt-row .p:hover { background: var(--ui-hover-bg); }
+  .dt-row .d { color: var(--ui-text-secondary); font-size: 13px; }
+  .dt-raw { margin: 0; max-height: 60vh; overflow: auto; padding: 14px 16px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface-soft); white-space: pre-wrap; word-break: break-all; font: 13px/1.6 Consolas, "SFMono-Regular", monospace; }
+  @media (max-width: 640px) { .dt-head, .dt-row { grid-template-columns: minmax(0, 1fr) 100px; } .dt-head span:nth-child(3), .dt-row span:nth-child(3) { display: none; } }
+  /* ---------- 文件对比:左侧文件树 + 右侧内容 / 冲突 ---------- */
+  dialog.xwide { width: min(1320px, 96vw); }
+  dialog.fc-dlg .dlg-body { overflow: hidden; padding: 16px 20px; }
+  .fc2 { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 16px; height: min(70vh, 780px); }
+  .fc-side { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .fc-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .fc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .fc-side .fc-bar input { flex: 1; min-width: 0; }
+  .fc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 12.5px; color: var(--ui-text-secondary); }
+  .fc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .fc-tree { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); padding: 6px; }
+  .fc-sum { flex: none; margin-top: 8px; font-size: 12.5px; color: var(--ui-text-secondary); line-height: 1.7; }
+  .fc-sum div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fc-sum .warn { color: var(--ui-warning-text); }
+  .tn { display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 3px 8px; border-radius: 6px; cursor: pointer; font: 13.5px/20px Consolas, "SFMono-Regular", monospace; user-select: none; }
+  .tn:hover { background: var(--ui-hover-bg); }
+  .tn.sel { background: var(--ui-info-bg); box-shadow: inset 3px 0 0 var(--ui-brand); }
+  .tn .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tn .nm span { opacity: .6; }
+  .tn.dir { color: var(--ui-text); font-weight: 600; }
+  .tn .cv { display: inline-block; width: 14px; text-align: center; transition: transform .15s; color: var(--ui-text-secondary); font-size: 11px; }
+  .tn .cv.c { transform: rotate(-90deg); }
+  .tn .bd { margin-left: auto; display: inline-flex; gap: 4px; font: 11.5px/16px var(--ui-font-family); }
+  .tn .bd i { font-style: normal; padding: 0 6px; border-radius: 8px; border: 1px solid; }
+  .tn.more { color: var(--ui-accent-text); justify-content: center; font-family: var(--ui-font-family); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: currentColor; }
+  .c-g { color: var(--ui-success-text); }
+  .c-a { color: var(--ui-warning-text); }
+  .c-r { color: var(--ui-danger-text); font-weight: 600; }
+  .lg { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .lg.g { background: var(--ui-success-text); } .lg.a { background: var(--ui-warning-text); } .lg.r { background: var(--ui-danger-text); }
+  .bd .bg-r { color: var(--ui-danger-text); background: var(--ui-danger-bg); border-color: var(--ui-danger-border); }
+  .bd .bg-a { color: var(--ui-warning-text); background: var(--ui-warning-bg); border-color: var(--ui-warning-border); }
+  .fc-path { font: 600 14px/22px Consolas, "SFMono-Regular", monospace; overflow-wrap: anywhere; flex: 1; min-width: 160px; }
+  .fc-seg { display: inline-flex; border: 1px solid var(--ui-border); border-radius: 8px; overflow: hidden; }
+  .fc-seg button { border: 0; border-radius: 0; height: 32px; }
+  .fc-seg button.on { background: var(--ui-action); color: var(--ui-on-action); }
+  .fc-banner { padding: 9px 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid; font-size: 13.5px; line-height: 1.6; }
+  .fc-banner.g { color: var(--ui-success-text); background: var(--ui-success-bg); border-color: var(--ui-success-border); }
+  .fc-banner.a { color: var(--ui-warning-text); background: var(--ui-warning-bg); border-color: var(--ui-warning-border); }
+  .fc-banner.r { color: var(--ui-danger-text); background: var(--ui-danger-bg); border-color: var(--ui-danger-border); }
+  .fc-banner b { font-weight: 600; }
+  .fc-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 10px; font-size: 13px; color: var(--ui-text-secondary); }
+  .fc-meta .del { color: var(--ui-danger-text); font-weight: 600; }
+  .fc-meta .add { color: var(--ui-success-text); font-weight: 600; }
+  #fcDetail { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  .df { flex: 1; min-height: 0; border: 1px solid var(--ui-border); border-radius: 12px; overflow: auto; background: var(--ui-surface); font: 13px/20px Consolas, "SFMono-Regular", monospace; }
+  .df table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .df td { padding: 0 10px; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+  .df td.no { text-align: right; color: var(--ui-text-secondary); user-select: none; opacity: .75; padding: 0 8px; }
+  .df td.sg { text-align: center; user-select: none; }
+  .df tr.add td { background: color-mix(in srgb, var(--ui-success-text) 14%, transparent); }
+  .df tr.del td { background: color-mix(in srgb, var(--ui-danger-text) 14%, transparent); }
+  .df tr.add td.sg { color: var(--ui-success-text); font-weight: 700; }
+  .df tr.del td.sg { color: var(--ui-danger-text); font-weight: 700; }
+  .df tr.hunk td { background: var(--ui-info-bg); color: var(--ui-info-text); padding: 2px 10px; }
+  .df tr.note td { color: var(--ui-text-secondary); font-style: italic; }
+  .df td.add { background: color-mix(in srgb, var(--ui-success-text) 14%, transparent); }
+  .df td.del { background: color-mix(in srgb, var(--ui-danger-text) 14%, transparent); }
+  .df td.empty { background: color-mix(in srgb, var(--ui-text-secondary) 7%, transparent); }
+  .df.split td.mid { border-left: 1px solid var(--ui-border); }
+  .df-msg { padding: 36px 16px; text-align: center; color: var(--ui-text-secondary); line-height: 1.8; }
+  #fcPlaceholder { flex: 1; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--ui-border); border-radius: 12px; }
+  @media (max-width: 980px) { .fc2 { grid-template-columns: minmax(0, 1fr); height: auto; } .fc-tree { max-height: 34vh; } dialog.fc-dlg .dlg-body { overflow: auto; } .df { max-height: 52vh; } }
   #toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(8px); padding: 8px 18px; border-radius: var(--ui-radius-control); background: var(--ui-text); color: var(--ui-surface); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 30; max-width: 90vw; box-shadow: var(--dialog-shadow); }
   #toast.show { opacity: .96; transform: translateX(-50%) translateY(0); }
 
@@ -520,6 +604,57 @@
     <div class="formerr" id="grpErr"></div>
   </div>
   <div class="dlg-foot"><button id="grpClose" type="button">完成</button></div>
+</dialog>
+
+<dialog id="fcDlg" class="xwide fc-dlg">
+  <div class="dlg-head"><span id="fcTitle">文件对比</span><small id="fcSub"></small></div>
+  <div class="dlg-body">
+    <div class="fc2">
+      <aside class="fc-side">
+        <div class="fc-bar">
+          <input type="text" id="fcFilter" placeholder="搜索文件路径" spellcheck="false" autocomplete="off">
+          <button type="button" id="fcRefresh" title="重新读取两边的文件列表">刷新</button>
+        </div>
+        <div class="dt-chips" id="fcChips"></div>
+        <div class="fc-legend"><span><i class="lg g"></i>绿色:两边一致</span><span><i class="lg a"></i>橙色:有差异</span><span><i class="lg r"></i>红色:冲突</span></div>
+        <div class="fc-tree" id="fcTree"></div>
+        <div class="fc-sum" id="fcCount"></div>
+      </aside>
+      <section class="fc-main">
+        <div id="fcPlaceholder" class="df-msg">点左边的文件查看内容。<br>绿色的显示文件内容;红色(冲突)的显示两边哪里不一样。</div>
+        <div id="fcDetail" style="display:none">
+          <div class="fc-bar">
+            <span class="fc-path" id="fcDiffPath"></span>
+            <span class="fc-seg" id="fcSeg" style="display:none"><button type="button" data-fc-view="unified" class="on">统一</button><button type="button" data-fc-view="split">并排</button></span>
+          </div>
+          <div id="fcBanner"></div>
+          <div class="fc-meta" id="fcMeta"></div>
+          <div class="df" id="fcDiff"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div class="dlg-foot"><button class="primary" id="fcClose" type="button">关闭</button></div>
+</dialog>
+
+<dialog id="dtDlg" class="wide">
+  <div class="dlg-head"><span id="dtTitle">详情</span><small id="dtSub"></small></div>
+  <div class="dlg-body">
+    <div id="dtConf">
+      <div class="rm-bar">
+        <input type="text" id="dtFilter" placeholder="搜索文件路径" spellcheck="false" autocomplete="off">
+        <button type="button" id="dtCopyPaths">复制当前路径</button>
+      </div>
+      <div class="dt-chips" id="dtChips"></div>
+      <div class="rm-list" id="dtList"></div>
+      <div class="rm-foot"><span id="dtCount"></span><button class="text" id="dtRule" type="button" style="display:none">复制排除规则</button></div>
+    </div>
+    <pre class="dt-raw" id="dtRaw" style="display:none"></pre>
+  </div>
+  <div class="dlg-foot">
+    <button id="dtCopyRaw" type="button" style="display:none">复制全部输出</button>
+    <button class="primary" id="dtClose" type="button">关闭</button>
+  </div>
 </dialog>
 
 <dialog id="rmDlg" class="wide">
@@ -723,6 +858,40 @@
   var LOCAL_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="8.5" rx="1.2"/><path d="M5.5 13.5h5M8 11v2.5"/></svg>';
   var WARN_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.2 13H1.8L8 2.2ZM8 6.5v3M8 11.3h.01"/></svg>';
 
+  // 告警文字;有冲突时直接列出是哪些文件(普通列表只有数量,具体文件由后端另取)
+  var CF_MAX = 3;
+  // 冲突总数:取自 "Conflicts: N" 这一行(解析出的文件列表可能被 Mutagen 截断)
+  function conflictTotal(s) {
+    var n = 0;
+    (s.warns || []).forEach(function (w) { var m = /^conflicts?:\s*(\d+)/i.exec(w); if (m) n = Number(m[1]); });
+    return n;
+  }
+
+  function warnsHtml(s) {
+    var conflicts = s.conflicts || [];
+    var lines = [];
+    (s.warns || []).forEach(function (w) {
+      if (/^conflicts?:/i.test(w) && conflicts.length) return;
+      lines.push(esc(warnZh(w)));
+    });
+    var html = lines.join('<br>');
+    if (conflicts.length) {
+      var rows = conflicts.slice(0, CF_MAX).map(function (c) {
+        var sides = [];
+        if (c.alpha) sides.push('服务器:' + c.alpha);
+        if (c.beta) sides.push('本地:' + c.beta);
+        return '<div class="cf-row"><span class="cf-path" data-copy="' + esc(c.path) + '" title="点击复制路径">' + esc(c.path) + '</span>' +
+          (sides.length ? '<span class="cf-desc">' + esc(sides.join(' · ')) + '</span>' : '') + '</div>';
+      }).join('');
+      var total = Math.max(conflictTotal(s), conflicts.length);
+      var more = total > CF_MAX ? '<div class="cf-desc">还有 ' + (total - CF_MAX) + ' 个,点右边"查看全部"</div>' : '';
+      html = (html ? html + '<br>' : '') + '<b>' + total + ' 个文件冲突</b>(两边都改了、或一边改一边删,同步不能替你决定留哪个)' +
+        '<div class="cf-list">' + rows + more + '</div>' +
+        '<div class="cf-hint">处理:保留你要的那一边,把另一边的这个文件删掉,再点"立即同步";如果这个文件本来就不该同步,把它加进排除规则并重建会话。</div>';
+    }
+    return html;
+  }
+
   function card(s) {
     var c = classify(s);
     var id = esc(s.id);
@@ -741,12 +910,15 @@
 
     var notes = '';
     if (s.drift) notes += '<div class="note warn">' + WARN_ICON + '<span class="grow">' + esc(s.drift) + '</span><button class="compact" data-act="rebuild" data-id="' + id + '">重建以应用</button></div>';
-    if (s.warns && s.warns.length) notes += '<div class="note warn">' + WARN_ICON + '<span class="grow">' + s.warns.map(warnZh).map(esc).join('<br>') + '</span><button class="compact" data-act="long" data-id="' + id + '">查看详情</button></div>';
+    if (s.warns && s.warns.length) notes += '<div class="note warn">' + WARN_ICON + '<span class="grow">' + warnsHtml(s) + '</span>' + (s.conflicts && s.conflicts.length
+        ? '<button class="compact" data-ui="conflicts" data-id="' + id + '">查看全部</button>'
+        : '<button class="compact" data-act="long" data-id="' + id + '">查看详情</button>') + '</div>';
     if (notes) h += '<div class="notes">' + notes + '</div>';
 
     h += '<div class="actions">';
     if (!s.exists) {
       h += '<button class="primary compact" data-act="create" data-id="' + id + '" title="在 Mutagen 里创建这个同步会话并开始同步">创建并开始同步</button>';
+      h += '<button class="compact" data-ui="files" data-id="' + id + '" title="查看服务器和本地的文件对应关系,以及内容差异">文件对比</button>';
       h += '<button class="compact" data-act="pull" data-id="' + id + '" title="一次性把服务器文件覆盖到本地,本地多出来的文件保留">覆盖本地</button>';
     } else {
       h += '<button class="primary compact" data-act="flush" data-id="' + id + '" title="立即比对并同步一次">立即同步</button>';
@@ -754,6 +926,7 @@
         ? '<button class="compact" data-act="resume" data-id="' + id + '">恢复</button>'
         : '<button class="compact" data-act="pause" data-id="' + id + '" title="暂停同步,不会删除会话">暂停</button>';
       h += '<button class="compact" data-act="long" data-id="' + id + '" title="查看详细状态、冲突和错误">详情</button>';
+      h += '<button class="compact" data-ui="files" data-id="' + id + '" title="查看服务器和本地的文件对应关系,以及内容差异">文件对比</button>';
       h += '<button class="compact" data-act="pull" data-id="' + id + '" title="一次性把服务器文件覆盖到本地,本地多出来的文件保留">覆盖本地</button>';
     }
     h += '<span class="grow"></span>' +
@@ -817,12 +990,14 @@
     document.querySelectorAll('#cards button[data-act], #cards button[data-ui]').forEach(function (b) { b.disabled = value; });
   }
 
-  function dialogOpen() { return $('dlg').open || $('delDlg').open || $('srvDlg').open || $('grpDlg').open || $('askDlg').open || $('rmDlg').open; }
+  function dialogOpen() { return $('dlg').open || $('delDlg').open || $('srvDlg').open || $('grpDlg').open || $('askDlg').open || $('rmDlg').open || $('dtDlg').open || $('fcDlg').open; }
+
+  var lastStateKey = '';
 
   function refresh() {
     // 弹窗、下拉菜单打开时不刷新,避免操作中途被重绘打断
-    if (document.hidden || busy || dragging || dialogOpen() || document.querySelector('details.menu[open]')) return;
-    api('/api/state').then(function (st) {
+    if (document.hidden || busy || dragging || dialogOpen() || document.querySelector('details.menu[open]')) return Promise.resolve();
+    return api('/api/state').then(function (st) {
       var msg = $('msg');
       var text = st.error || st.listError || '';
       msg.style.display = text ? 'block' : 'none';
@@ -830,8 +1005,20 @@
       if (st.error) return;
       sessions = st.sessions;
       groups = st.groups || [];
-      render();
+      // 内容没变就不重绘:省 CPU,也不会把正在点的按钮在按下和松开之间换掉
+      var key = JSON.stringify(st);
+      if (key !== lastStateKey) { lastStateKey = key; render(); }
     }).catch(function (e) { $('msg').style.display = 'block'; $('msg').textContent = e.message; });
+  }
+
+  // 轮询间隔:有会话在传输/扫描时 2 秒,全都安静时 5 秒(每次轮询都要启动一次 mutagen 进程,空闲时没必要那么勤)
+  var pollTimer = null;
+  function pollDelay() {
+    return sessions.some(function (x) { return classify(x)[0] === 'busy'; }) ? 2000 : 5000;
+  }
+  function poll() {
+    clearTimeout(pollTimer);
+    refresh().then(function () {}, function () {}).then(function () { pollTimer = setTimeout(poll, pollDelay()); });
   }
 
   // ---------- 日志 ----------
@@ -871,13 +1058,483 @@
     }
     if (needConfirm) body.confirm = true;
     setBusy(true);
-    toast(label + ' ……');
+    if (action !== 'long') toast(label + ' ……');
     return api('/api/action', body).then(function (r) {
+      if (action === 'long' && r.ok) { openRaw(label, r.out); return; } // 详情直接在窗口里看,不再只弹个"完成"
       var quiet = r.ok && !r.out;
       if (!quiet) log(label + (r.ok ? ' 完成' : ' 失败') + (r.out ? '\n' + r.out : ''));
       toast(label + (r.ok ? ' 完成' : ' 失败,见页面底部'));
     }).catch(function (e) { log(label + ' 出错:' + e.message); toast(label + ' 出错'); })
       .then(function () { setBusy(false); refresh(); });
+  }
+
+  // ---------- 冲突列表窗口 / 详情输出窗口 ----------
+  var dt = { items: [], dir: null, total: 0 };
+
+  function dirOf(path) { var i = path.indexOf('/'); return i < 0 ? '' : path.slice(0, i); }
+
+  function copyText(text, done) {
+    // 浏览器可能拒绝写剪贴板(没有权限、非安全页面),失败时要提示,不能悄悄出错
+    if (!navigator.clipboard) { toast('这个浏览器不能自动复制,请手动选中复制'); return; }
+    navigator.clipboard.writeText(text).then(function () { toast(done); }, function () { toast('复制失败,请手动选中复制'); });
+  }
+
+  function openRaw(title, text) {
+    $('dtTitle').textContent = title;
+    $('dtSub').textContent = 'Mutagen 的原始输出';
+    $('dtConf').style.display = 'none';
+    $('dtRaw').style.display = '';
+    $('dtRaw').textContent = text || '(没有输出)';
+    $('dtCopyRaw').style.display = '';
+    if (!$('dtDlg').open) $('dtDlg').showModal();
+  }
+
+  function visibleConflicts() {
+    var q = $('dtFilter').value.trim().toLowerCase();
+    return dt.items.filter(function (c) {
+      return (dt.dir === null || dirOf(c.path) === dt.dir) && (!q || c.path.toLowerCase().indexOf(q) >= 0);
+    });
+  }
+
+  function renderConflicts() {
+    var counts = {};
+    dt.items.forEach(function (c) { var d = dirOf(c.path); counts[d] = (counts[d] || 0) + 1; });
+    var dirs = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    $('dtChips').innerHTML = dirs.length > 1
+      ? '<button class="dt-chip' + (dt.dir === null ? ' on' : '') + '" data-dt-dir="*">全部<em>' + dt.items.length + '</em></button>' +
+        dirs.slice(0, 8).map(function (d) {
+          return '<button class="dt-chip' + (dt.dir === d ? ' on' : '') + '" data-dt-dir="' + esc(d) + '">' + esc(d ? d + '/' : '(根目录)') + '<em>' + counts[d] + '</em></button>';
+        }).join('') + (dirs.length > 8 ? '<span class="hint" style="align-self:center">另有 ' + (dirs.length - 8) + ' 个目录,用搜索缩小范围</span>' : '')
+      : '';
+    var list = visibleConflicts();
+    var SHOW = 500;
+    $('dtList').innerHTML = '<div class="dt-head"><span>文件</span><span>服务器端</span><span>本地端</span></div>' +
+      (list.length ? list.slice(0, SHOW).map(function (c) {
+        return '<div class="dt-row"><span class="p" data-copy="' + esc(c.path) + '" title="点击复制路径">' + esc(c.path) + '</span><span class="d">' + esc(c.alpha || '—') + '</span><span class="d">' + esc(c.beta || '—') + '</span></div>';
+      }).join('') : '<div class="rm-note">没有匹配的冲突</div>');
+    $('dtCount').textContent = '显示 ' + Math.min(list.length, SHOW) + ' / 共 ' + Math.max(dt.total, dt.items.length) + ' 个冲突' +
+      (list.length > SHOW ? '(只列出前 ' + SHOW + ' 个,用搜索缩小范围)' : '') +
+      (dt.total > dt.items.length ? '(Mutagen 只返回了其中 ' + dt.items.length + ' 个的路径)' : '');
+    $('dtRule').style.display = dt.dir ? '' : 'none';
+  }
+
+  function openConflicts(id) {
+    var s = sessions.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+    if (!s.conflicts || !s.conflicts.length) { act('long', id); return; }
+    dt.items = s.conflicts;
+    dt.dir = null;
+    dt.total = conflictTotal(s);
+    $('dtTitle').textContent = '冲突的文件 · ' + s.label;
+    $('dtSub').textContent = '点路径可复制。保留要的一边,删掉另一边的文件后点"立即同步";不该同步的目录请加进排除规则并重建会话';
+    $('dtConf').style.display = '';
+    $('dtRaw').style.display = 'none';
+    $('dtCopyRaw').style.display = 'none';
+    $('dtFilter').value = '';
+    renderConflicts();
+    $('dtDlg').showModal();
+  }
+
+  // ---------- 文件对比:左侧文件树(绿=一致、橙=有差异、红=冲突)+ 右侧内容 / 冲突对比 ----------
+  var fc = { s: null, rows: [], byPath: {}, counts: {}, truncated: false, localMissing: false, filter: 'all', listSeq: 0, diffSeq: 0, view: 'unified',
+    loading: false, refreshing: false, error: '', timing: null, at: 0, sel: null, open: null, dirShow: {}, verdict: {}, detail: null };
+  var fcCache = {}; // 会话 id → 上一次的结果:再次打开时先显示旧的,后台刷新
+  var FC_STATES = ['server-only', 'local-only', 'size-diff', 'same-size'];
+  var FC_DIR_SHOW = 300; // 一个目录里最多先列这么多文件,其余点"再显示"
+  var FC_TEXT_LINES = 3000;
+
+  function timeText(sec) {
+    var d = new Date(sec * 1000);
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  // 颜色:红=Mutagen 报告的冲突;绿=两边大小一致且点开后内容也一致(没点开过的按大小判断);橙=其余(仅一边有、大小不同、点开后发现内容不同)
+  function fcColor(row) {
+    if (row.state === 'conflict') return 'r';
+    if (fc.verdict[row.path] === 'diff') return 'a';
+    return row.state === 'same-size' ? 'g' : 'a';
+  }
+
+  function openFiles(id) {
+    var s = sessions.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+    fc.s = s;
+    fc.filter = 'all';
+    fc.sel = null;
+    fc.open = null;
+    fc.dirShow = {};
+    fc.verdict = {};
+    fc.detail = null;
+    fc.diffSeq++;
+    $('fcTitle').textContent = '文件对比 · ' + s.label;
+    $('fcSub').textContent = s.host + ':' + remotePath(s.remote) + '  ⇄  ' + s.local + '(已按会话的排除规则过滤)';
+    $('fcFilter').value = '';
+    showPlaceholder();
+    if (!$('fcDlg').open) $('fcDlg').showModal();
+    var cached = fcCache[id];
+    if (cached && Date.now() - cached.at < 10 * 60 * 1000) {
+      Object.assign(fc, cached.data); // 有上一次的结果:立刻显示,后台刷新
+      fc.loading = false;
+      fc.error = '';
+      autoSelect();
+      loadFiles(true);
+    } else {
+      fc.rows = [];
+      loadFiles(false);
+    }
+  }
+
+  function showPlaceholder() { $('fcPlaceholder').style.display = ''; $('fcDetail').style.display = 'none'; }
+
+  // keep=true:保留当前显示的内容,在后台刷新(不弹"正在读取")
+  function loadFiles(keep) {
+    var seq = ++fc.listSeq;
+    if (keep && fc.rows.length) { fc.refreshing = true; } else { fc.loading = true; fc.rows = []; }
+    fc.error = '';
+    renderFiles();
+    api('/api/files?id=' + encodeURIComponent(fc.s.id)).then(function (r) {
+      if (seq !== fc.listSeq) return;
+      fc.loading = false;
+      fc.refreshing = false;
+      if (!r.ok) { fc.error = r.out; fc.rows = []; renderFiles(); return; }
+      // Mutagen 报告的冲突优先于"大小"判断;列表里没有的冲突路径也补进来
+      var cf = {};
+      (fc.s.conflicts || []).forEach(function (c) { cf[c.path] = c; });
+      var seen = {};
+      fc.rows = r.rows.map(function (w) {
+        // 后端传来的是紧凑数组 [路径, 状态码, 服务器大小, 服务器时间, 本地大小, 本地时间],不存在的一边大小为 -1
+        var row = { path: w[0], state: FC_STATES[w[1]], server: w[2] < 0 ? null : { size: w[2], mtime: w[3] }, local: w[4] < 0 ? null : { size: w[4], mtime: w[5] } };
+        seen[row.path] = true;
+        if (cf[row.path]) { row.state = 'conflict'; row.cf = cf[row.path]; }
+        return row;
+      });
+      Object.keys(cf).forEach(function (p) { if (!seen[p]) fc.rows.push({ path: p, server: null, local: null, state: 'conflict', cf: cf[p] }); });
+      fc.byPath = {};
+      fc.rows.forEach(function (row) { fc.byPath[row.path] = row; });
+      fc.truncated = r.truncated;
+      fc.localMissing = r.localMissing;
+      fc.timing = r.timing;
+      fc.at = Date.now();
+      fcCache[fc.s.id] = { at: fc.at, data: { rows: fc.rows, byPath: fc.byPath, truncated: fc.truncated, localMissing: fc.localMissing, timing: fc.timing, at: fc.at } };
+      if (fc.open === null) autoSelect(); else renderFiles();
+    }).catch(function (e) {
+      if (seq !== fc.listSeq) return;
+      fc.loading = false;
+      fc.refreshing = false;
+      if (!fc.rows.length) fc.error = e.message; else toast('刷新失败:' + e.message);
+      renderFiles();
+    });
+  }
+
+  // 首次显示时:冲突文件所在的目录一定展开;有差异(橙色)的目录在一个"行数预算"内依次展开,
+  // 不然像"本地新建了一个几千个文件的目录"这种情况会把整棵树都展开,页面会非常慢。
+  var FC_OPEN_BUDGET = 600;
+  function autoSelect() {
+    fc.open = {};
+    var red = {}, orange = {}, direct = {};
+    fc.rows.forEach(function (row) {
+      var i = row.path.lastIndexOf('/');
+      var dir = i < 0 ? '' : row.path.slice(0, i);
+      direct[dir] = (direct[dir] || 0) + 1;
+      var c = fcColor(row);
+      if (c === 'g') return;
+      var parts = row.path.split('/');
+      for (var k = 1; k < parts.length; k++) (c === 'r' ? red : orange)[parts.slice(0, k).join('/')] = true;
+    });
+    Object.keys(red).forEach(function (d) { fc.open[d] = true; });
+    var budget = FC_OPEN_BUDGET;
+    Object.keys(orange).sort().forEach(function (d) {
+      if (fc.open[d] || budget <= 0) return;
+      fc.open[d] = true;
+      budget -= 1 + (direct[d] || 0);
+    });
+    renderFiles();
+    // 列表不再由后端排序,所以这里自己取路径排在最前的冲突文件(每次打开选中的都是同一个)
+    var first = null;
+    fc.rows.forEach(function (row) { if (row.state === 'conflict' && (!first || row.path < first.path)) first = row; });
+    if (first && !fc.sel) selectFile(first.path);
+  }
+
+  function fcPass(row, query) {
+    var c = fcColor(row);
+    if (fc.filter === 'conflict' && c !== 'r') return false;
+    if (fc.filter === 'diff' && c !== 'a') return false;
+    if (fc.filter === 'same' && c !== 'g') return false;
+    return !query || row.path.toLowerCase().indexOf(query) >= 0;
+  }
+
+  function buildTree(rows) {
+    var root = { path: '', dirs: {}, files: [], r: 0, a: 0, g: 0 };
+    rows.forEach(function (row) {
+      var parts = row.path.split('/');
+      var node = root;
+      var color = fcColor(row);
+      node[color]++;
+      var prefix = '';
+      for (var i = 0; i < parts.length - 1; i++) {
+        prefix = prefix ? prefix + '/' + parts[i] : parts[i];
+        node = node.dirs[parts[i]] || (node.dirs[parts[i]] = { name: parts[i], path: prefix, dirs: {}, files: [], r: 0, a: 0, g: 0 });
+        node[color]++;
+      }
+      node.files.push({ row: row, name: parts[parts.length - 1], color: color });
+    });
+    return root;
+  }
+
+  function fileRowHtml(f, indent, label) {
+    return '<div class="tn file c-' + f.color + (fc.sel === f.row.path ? ' sel' : '') + '" data-fc-path="' + esc(f.row.path) + '" title="' + esc(f.row.path) + '" style="padding-left:' + indent + 'px">' +
+      '<i class="dot"></i><span class="nm">' + label + '</span></div>';
+  }
+
+  var FC_MAX_ROWS = 2000; // 树里最多渲染这么多行,再多浏览器排版会很慢
+
+  function treeHtml(node, depth, expandAll, ctx) {
+    var html = '';
+    Object.keys(node.dirs).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }).forEach(function (name) {
+      if (ctx.left <= 0) { ctx.cut = true; return; }
+      ctx.left--;
+      var d = node.dirs[name];
+      var open = expandAll || fc.open[d.path] === true;
+      html += '<div class="tn dir" data-fc-dir="' + esc(d.path) + '" style="padding-left:' + (8 + depth * 16) + 'px"><span class="cv' + (open ? '' : ' c') + '">▾</span><span class="nm">' + esc(name) + '</span>' +
+        '<span class="bd">' + (d.r ? '<i class="bg-r">' + d.r + ' 冲突</i>' : '') + (d.a ? '<i class="bg-a">' + d.a + ' 差异</i>' : '') + '</span></div>';
+      if (open) html += treeHtml(d, depth + 1, expandAll, ctx);
+    });
+    var files = node.files.slice().sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+    var cap = fc.dirShow[node.path] || FC_DIR_SHOW;
+    files.slice(0, cap).forEach(function (f) {
+      if (ctx.left <= 0) { ctx.cut = true; return; }
+      ctx.left--;
+      html += fileRowHtml(f, 8 + depth * 16 + 21, esc(f.name));
+    });
+    if (files.length > cap) html += '<div class="tn more" data-fc-more="' + esc(node.path) + '">再显示 ' + Math.min(500, files.length - cap) + ' 个(还有 ' + (files.length - cap) + ' 个没显示)</div>';
+    return html;
+  }
+
+  function renderFiles() {
+    var tree = $('fcTree');
+    if (fc.loading) { tree.innerHTML = '<div class="rm-note">正在读取服务器和本地的文件列表……文件多的时候需要几秒。</div>'; $('fcChips').innerHTML = ''; $('fcCount').textContent = ''; return; }
+    if (fc.error) { tree.innerHTML = '<div class="rm-note err">' + esc(fc.error) + '</div>'; $('fcChips').innerHTML = ''; $('fcCount').textContent = ''; return; }
+    var n = { r: 0, a: 0, g: 0 };
+    fc.rows.forEach(function (row) { n[fcColor(row)]++; });
+    var chips = [['all', '全部', fc.rows.length], ['conflict', '冲突', n.r], ['diff', '有差异', n.a], ['same', '一致', n.g]];
+    $('fcChips').innerHTML = chips.filter(function (c) { return c[0] === 'all' || c[2] > 0; }).map(function (c) {
+      return '<button class="dt-chip' + (fc.filter === c[0] ? ' on' : '') + '" data-fc-filter="' + c[0] + '">' + c[1] + '<em>' + c[2] + '</em></button>';
+    }).join('');
+
+    var query = $('fcFilter').value.trim().toLowerCase(); // 只读一次,不要每行都读一遍 DOM
+    var list = fc.rows.filter(function (row) { return fcPass(row, query); });
+    if (!list.length) {
+      tree.innerHTML = '<div class="rm-note">' + (fc.rows.length ? '没有匹配的文件' : '两边都没有文件') + '</div>';
+    } else if (query) {
+      // 搜索:平铺显示匹配的文件(带完整路径)
+      var cap = Math.min(fc.dirShow['?'] || FC_DIR_SHOW, FC_MAX_ROWS);
+      list.sort(function (a, b) { return a.path < b.path ? -1 : a.path > b.path ? 1 : 0; });
+      tree.innerHTML = list.slice(0, cap).map(function (row) {
+        var i = row.path.lastIndexOf('/');
+        return fileRowHtml({ row: row, color: fcColor(row) }, 8, i < 0 ? esc(row.path) : '<span>' + esc(row.path.slice(0, i + 1)) + '</span>' + esc(row.path.slice(i + 1)));
+      }).join('') + (list.length > cap ? '<div class="tn more" data-fc-more="?">再显示 ' + Math.min(500, list.length - cap) + ' 个(还有 ' + (list.length - cap) + ' 个没显示)</div>' : '');
+    } else {
+      var ctx = { left: FC_MAX_ROWS, cut: false };
+      tree.innerHTML = treeHtml(buildTree(list), 0, fc.filter !== 'all', ctx) + // 按状态筛选时全部展开
+        (ctx.cut ? '<div class="rm-note">条目太多,只显示了前 ' + FC_MAX_ROWS + ' 行。请折叠不关心的目录,或用上面的搜索、筛选标签缩小范围。</div>' : '');
+    }
+    var t = fc.timing;
+    var secs = function (ms) { return (ms / 1000).toFixed(1); };
+    // 每行都短、不折行;放不下时省略,鼠标放上去能看到完整内容
+    var lines = ['共 ' + fc.rows.length + ' 个文件' + (list.length !== fc.rows.length ? '(显示 ' + list.length + ' 个)' : '')];
+    if (fc.refreshing) lines.push('正在刷新……(先显示 ' + Math.round((Date.now() - fc.at) / 1000) + ' 秒前的结果)');
+    else if (t) lines.push('读取 ' + secs(t.totalMs) + ' 秒 · 服务器 ' + secs(t.serverMs) + ' · 本地 ' + secs(t.localMs));
+    var warns = [];
+    if (fc.truncated) warns.push('文件太多,列表已被截断');
+    if (fc.localMissing) warns.push('本地目录还不存在');
+    $('fcCount').innerHTML = lines.map(function (l) { return '<div title="' + esc(l) + '">' + esc(l) + '</div>'; }).join('') +
+      warns.map(function (w) { return '<div class="warn" title="' + esc(w) + '">⚠ ' + esc(w) + '</div>'; }).join('');
+  }
+
+  var selEl = null;
+  function markSelected() {
+    // 只改前一个和当前这一个,不要遍历整棵树(几千个节点时每次点击都会卡)
+    if (selEl) selEl.classList.remove('sel');
+    selEl = fc.sel ? $('fcTree').querySelector('.tn.file[data-fc-path="' + (window.CSS && CSS.escape ? CSS.escape(fc.sel) : fc.sel) + '"]') : null;
+    if (selEl) selEl.classList.add('sel');
+  }
+
+  // ---- 右侧:选中一个文件
+  // 要读取哪一边:绿色(大小一致)的文件只读本地、只在本地有的只读本地、只在服务器有的只读服务器,
+  // 其余(冲突、有差异)两边都读。能少连一次服务器就少连一次——每次读服务器都是一次 SSH 往返。
+  function sidesFor(row, force) {
+    if (force || !row || row.state === 'conflict') return 'both';
+    if (row.state === 'local-only') return 'local';
+    if (row.state === 'server-only') return 'server';
+    return fcColor(row) === 'g' ? 'local' : 'both';
+  }
+
+  var fcDetailCache = {}; // 路径|读取方式 → {at, r}:一分钟内再点同一个文件不用重新读
+
+  function selectFile(path, forceBoth) {
+    fc.sel = path;
+    markSelected();
+    var seq = ++fc.diffSeq;
+    var row = fc.byPath[path];
+    var side = sidesFor(row, forceBoth);
+    fc.detail = null;
+    $('fcPlaceholder').style.display = 'none';
+    $('fcDetail').style.display = '';
+    $('fcDiffPath').textContent = path;
+    $('fcSeg').style.display = 'none';
+    $('fcBanner').innerHTML = '';
+    $('fcMeta').innerHTML = '';
+    $('fcDiff').className = 'df';
+    var key = fc.s.id + '|' + path + '|' + side;
+    var hit = fcDetailCache[key];
+    if (hit && Date.now() - hit.at < 60000) { gotDetail(path, side, hit.r); return; }
+    $('fcDiff').innerHTML = '<div class="df-msg">' + (side === 'both' ? '正在读取两边的文件内容……' : side === 'local' ? '正在读取本地文件……' : '正在读取服务器上的文件……') + '</div>';
+    api('/api/file-diff?id=' + encodeURIComponent(fc.s.id) + '&path=' + encodeURIComponent(path) + '&side=' + side).then(function (r) {
+      if (seq !== fc.diffSeq) return;
+      if (r.ok) fcDetailCache[key] = { at: Date.now(), r: r };
+      gotDetail(path, side, r);
+    }).catch(function (e) {
+      if (seq !== fc.diffSeq) return;
+      fc.detail = { ok: false, out: e.message };
+      renderDetail();
+    });
+  }
+
+  function gotDetail(path, side, r) {
+    fc.detail = r;
+    // 两边都读了才知道内容是不是真的一致:大小相同但内容不同的,从绿色改成橙色
+    var row = fc.byPath[path];
+    if (row && r.ok && side === 'both' && row.state !== 'conflict' && r.server.exists && r.local.exists) {
+      fc.verdict[path] = r.identical || r.eolOnly ? 'same' : 'diff';
+      var el = $('fcTree').querySelector('.tn.file[data-fc-path="' + (window.CSS && CSS.escape ? CSS.escape(path) : path) + '"]');
+      if (el) { el.classList.remove('c-g', 'c-a', 'c-r'); el.classList.add('c-' + fcColor(row)); }
+    }
+    renderDetail();
+  }
+
+  // 把差异块变成统一的行模型:{t:'ctx'|'add'|'del'|'hunk'|'note', o, n, text}
+  function diffRows(hunks) {
+    var rows = [];
+    hunks.forEach(function (h) {
+      rows.push({ t: 'hunk', text: '@@ -' + h.oldStart + ',' + h.oldLines + ' +' + h.newStart + ',' + h.newLines + ' @@' });
+      var o = h.oldStart, n = h.newStart;
+      h.lines.forEach(function (l) {
+        var c = l.charAt(0), tx = l.slice(1);
+        if (c === '+') rows.push({ t: 'add', o: '', n: n++, text: tx });
+        else if (c === '-') rows.push({ t: 'del', o: o++, n: '', text: tx });
+        else if (c === '\\') rows.push({ t: 'note', text: l });
+        else rows.push({ t: 'ctx', o: o++, n: n++, text: tx });
+      });
+    });
+    return rows;
+  }
+
+  function unifiedHtml(rows) {
+    // 固定布局下列宽取自第一行(那是跨 4 列的块头),所以必须用 colgroup 明确指定
+    return '<table><colgroup><col style="width:56px"><col style="width:56px"><col style="width:24px"><col></colgroup>' + rows.map(function (r) {
+      if (r.t === 'hunk') return '<tr class="hunk"><td colspan="4">' + esc(r.text) + '</td></tr>';
+      if (r.t === 'note') return '<tr class="note"><td class="no"></td><td class="no"></td><td class="sg"></td><td>' + esc(r.text) + '</td></tr>';
+      return '<tr class="' + r.t + '"><td class="no">' + r.o + '</td><td class="no">' + r.n + '</td><td class="sg">' + (r.t === 'add' ? '+' : r.t === 'del' ? '−' : '') + '</td><td>' + esc(r.text) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+
+  // 并排:左边服务器(删除的行),右边本地(新增的行);连续的删除和新增按顺序配对
+  function splitHtml(rows) {
+    var out = [];
+    var dels = [], adds = [];
+    function flush() {
+      var n = Math.max(dels.length, adds.length);
+      for (var i = 0; i < n; i++) {
+        var a = dels[i], b = adds[i];
+        out.push('<tr><td class="no">' + (a ? a.o : '') + '</td><td class="half ' + (a ? 'del' : 'empty') + '">' + (a ? esc(a.text) : '') + '</td>' +
+          '<td class="no mid">' + (b ? b.n : '') + '</td><td class="half ' + (b ? 'add' : 'empty') + '">' + (b ? esc(b.text) : '') + '</td></tr>');
+      }
+      dels = []; adds = [];
+    }
+    rows.forEach(function (r) {
+      if (r.t === 'del') dels.push(r);
+      else if (r.t === 'add') adds.push(r);
+      else {
+        flush();
+        if (r.t === 'hunk') out.push('<tr class="hunk"><td colspan="4">' + esc(r.text) + '</td></tr>');
+        else if (r.t === 'note') out.push('<tr class="note"><td class="no"></td><td colspan="3">' + esc(r.text) + '</td></tr>');
+        else out.push('<tr><td class="no">' + r.o + '</td><td class="half">' + esc(r.text) + '</td><td class="no mid">' + r.n + '</td><td class="half">' + esc(r.text) + '</td></tr>');
+      }
+    });
+    flush();
+    return '<table><colgroup><col style="width:56px"><col><col style="width:56px"><col></colgroup>' + out.join('') + '</table>';
+  }
+
+  // 普通文件内容:带行号
+  function textHtml(text) {
+    var lines = text.split('\n');
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    var cut = lines.length > FC_TEXT_LINES;
+    var rows = lines.slice(0, FC_TEXT_LINES).map(function (l, i) { return '<tr><td class="no">' + (i + 1) + '</td><td>' + esc(l.replace(/\r$/, '')) + '</td></tr>'; }).join('');
+    return '<table><colgroup><col style="width:56px"><col></colgroup>' + rows + '</table>' +
+      (cut ? '<div class="df-msg" style="padding:10px">文件很长,只显示了前 ' + FC_TEXT_LINES + ' 行(共 ' + lines.length + ' 行)。</div>' : '');
+  }
+
+  function renderDetail() {
+    var d = fc.detail;
+    var row = fc.byPath[fc.sel] || {};
+    var box = $('fcDiff');
+    box.className = 'df';
+    $('fcSeg').style.display = 'none';
+    var banner = function (kind, html) { $('fcBanner').innerHTML = '<div class="fc-banner ' + kind + '">' + html + '</div>'; };
+    $('fcBanner').innerHTML = '';
+    if (!d) return;
+    if (!d.ok) { $('fcMeta').innerHTML = ''; box.innerHTML = '<div class="df-msg" style="color:var(--ui-danger-text)">' + esc(d.out) + '</div>'; return; }
+
+    var skippedServer = d.skipped === 'server';
+    var skippedLocal = d.skipped === 'local';
+    // 没读取的那一边,大小用文件列表里的(那是读目录时顺带拿到的,不需要再连一次)
+    var serverSize = d.server.exists ? d.server.size : (row.server ? row.server.size : null);
+    var localSize = d.local.exists ? d.local.size : (row.local ? row.local.size : null);
+    var sideInfo = function (label, size, info, skipped) {
+      return '<span>' + label + ':' + (size === null ? '没有这个文件' : sizeText(size) + (info ? ' · ' + timeText(info.mtime) : '') + (skipped ? '(未读取)' : '')) + '</span>';
+    };
+    var meta = sideInfo('服务器', serverSize, row.server, skippedServer) + sideInfo('本地', localSize, row.local, skippedLocal);
+    if (d.added || d.removed) meta += '<span><span class="del">−' + d.removed + '</span> 行只在服务器 · <span class="add">+' + d.added + '</span> 行只在本地</span>';
+    if (d.eolIgnored && !d.eolOnly && !d.identical) meta += '<span>已忽略换行符(CRLF/LF)的差异</span>';
+    $('fcMeta').innerHTML = meta;
+
+    // 说明条
+    var cf = row.cf;
+    var cfLine = cf ? '<br>Mutagen 记录的情况:服务器 ' + esc(cf.alpha || '—') + ' · 本地 ' + esc(cf.beta || '—') + '。' : '';
+    var bothRead = !skippedServer && !skippedLocal;
+    var onlyLocal = row.state === 'local-only' || (bothRead && !d.server.exists && d.local.exists);
+    var onlyServer = row.state === 'server-only' || (bothRead && d.server.exists && !d.local.exists);
+    var same = bothRead && d.server.exists && d.local.exists && (d.identical || d.eolOnly);
+    if (row.state === 'conflict') {
+      banner('r', '<b>冲突</b>:两边都改了这个文件(或一边改、一边删),同步没法替你决定留哪个。' + (d.hunks && d.hunks.length ? '下面红色的行(−)只在服务器上有,绿色的行(+)只在本地有。' : '') + cfLine +
+        '<br>处理:保留你要的那一边,把另一边的这个文件删掉,再点"立即同步";如果不该同步,加进排除规则并重建会话。');
+    } else if (onlyLocal || onlyServer) {
+      banner('a', '这个文件<b>只在' + (onlyLocal ? '本地' : '服务器') + '上有</b>,另一边还没有(可能还没同步)。下面是它的内容。');
+    } else if (skippedServer) {
+      banner('g', '<b>绿色:两边大小一致。</b>这里只读取了本地的文件,没有连服务器(省一次 SSH 往返)。大小一样不保证内容一样。' +
+        ' <button type="button" class="compact" data-fc-verify="1">和服务器核对内容</button>');
+    } else if (same) {
+      banner('g', d.eolOnly ? '两边文字内容一致,只有换行符不同(Windows 的 CRLF 与 Linux 的 LF)。' : '<b>两边内容一致。</b>下面是文件内容。');
+    } else if (bothRead) {
+      banner('a', '两边内容<b>有差异</b>,但 Mutagen 没有报告冲突' + (row.state === 'same-size' ? '(大小一样,内容却不同)' : '') + ',可能只是还没同步完。');
+    }
+
+    // 内容区
+    var msg = null;
+    var sizes = '服务器 ' + (serverSize === null ? '无' : sizeText(serverSize)) + ',本地 ' + (localSize === null ? '无' : sizeText(localSize));
+    if (d.tooLarge) msg = '文件超过 512 KB,不在这里展示内容。可以用"覆盖本地",或直接用编辑器/diff 工具对比。';
+    else if (d.binary) msg = '这是二进制文件,无法显示文本内容(' + sizes + ')。';
+    if (msg) { box.innerHTML = '<div class="df-msg">' + esc(msg) + '</div>'; return; }
+    if (d.hunks && d.hunks.length) {
+      $('fcSeg').style.display = '';
+      var rows = diffRows(d.hunks);
+      box.className = 'df' + (fc.view === 'split' ? ' split' : '');
+      box.innerHTML = (fc.view === 'split' ? splitHtml(rows) : unifiedHtml(rows)) + (d.truncated ? '<div class="df-msg" style="padding:10px">差异太长,只显示了前面一部分。</div>' : '');
+      return;
+    }
+    box.innerHTML = d.text ? textHtml(d.text) : '<div class="df-msg">这个文件是空的。</div>';
   }
 
   // ---------- 自绘下拉框 ----------
@@ -1013,17 +1670,28 @@
     $('rmCount').textContent = items.length + ' 项' + (rm.truncated ? '(条目太多,只显示前 3000 项)' : '');
   }
 
-  function rmGo(path) {
+  var rmCache = {}; // 主机+路径 → {at, r}:来回进出目录时不用每次都重新连一次 SSH
+
+  function rmApply(r) {
+    rm.loading = false;
+    if (r.ok) { rm.path = r.path; rm.entries = r.entries; rm.truncated = r.truncated; $('rmPath').value = r.path; rm.error = ''; }
+    else { rm.entries = []; rm.error = r.out; }
+    renderRemote();
+  }
+
+  // force=true 时一定重新读取("前往"按钮);否则 30 秒内读过的目录直接用缓存
+  function rmGo(path, force) {
     var seq = ++rm.seq;
+    var key = rm.host + '\n' + path;
+    var hit = rmCache[key];
+    if (!force && hit && Date.now() - hit.at < 30000) { rmApply(hit.r); return; }
     rm.loading = true;
     rm.error = '';
     renderRemote();
     api('/api/remote-ls?host=' + encodeURIComponent(rm.host) + '&path=' + encodeURIComponent(path)).then(function (r) {
       if (seq !== rm.seq) return;
-      rm.loading = false;
-      if (r.ok) { rm.path = r.path; rm.entries = r.entries; rm.truncated = r.truncated; $('rmPath').value = r.path; }
-      else { rm.entries = []; rm.error = r.out; }
-      renderRemote();
+      if (r.ok) { rmCache[key] = { at: Date.now(), r: r }; rmCache[rm.host + '\n' + r.path] = { at: Date.now(), r: r }; }
+      rmApply(r);
     }).catch(function (e) {
       if (seq !== rm.seq) return;
       rm.loading = false;
@@ -1462,7 +2130,7 @@
     var copy = e.target.closest('[data-copy]');
     if (copy && e.detail >= 2) return; // 双击是"打开文件夹",不再重复复制
     if (copy && navigator.clipboard) {
-      navigator.clipboard.writeText(copy.getAttribute('data-copy')).then(function () { toast('已复制路径'); });
+      copyText(copy.getAttribute('data-copy'), '已复制路径');
       return;
     }
     var head = e.target.closest('[data-toggle]');
@@ -1482,7 +2150,9 @@
     if (ui) {
       closeMenus();
       if (busy) return;
-      if (ui === 'groups') openGroups();
+      if (ui === 'files') openFiles(b.getAttribute('data-id'));
+      else if (ui === 'conflicts') openConflicts(b.getAttribute('data-id'));
+      else if (ui === 'groups') openGroups();
       else if (ui === 'servers') openServers();
       else if (ui === 'host') editHost();
       else if (ui === 'delete') openDelete(b.getAttribute('data-id'));
@@ -1536,13 +2206,13 @@
   $('askDlg').addEventListener('close', function () { askFinish(null); });
   $('askInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); askFinish($('askInput').value); } });
   $('fBrowse').addEventListener('click', function () { openRemote($('fHost').value, $('fRemote').value.trim(), 'pick'); });
-  $('rmGo').addEventListener('click', function () { rmGo($('rmPath').value.trim() || '~'); });
+  $('rmGo').addEventListener('click', function () { rmGo($('rmPath').value.trim() || '~', true); });
   $('rmUp').addEventListener('click', function () { rmGo(parentPath($('rmPath').value.trim() || rm.path || '/')); });
-  $('rmPath').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); rmGo($('rmPath').value.trim() || '~'); } });
+  $('rmPath').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); rmGo($('rmPath').value.trim() || '~', true); } });
   $('rmHidden').addEventListener('change', renderRemote);
   $('rmClose').addEventListener('click', function () { $('rmDlg').close(); });
   $('rmCopy').addEventListener('click', function () {
-    if (rm.path && navigator.clipboard) navigator.clipboard.writeText(rm.path).then(function () { toast('已复制路径'); });
+    if (rm.path) copyText(rm.path, '已复制路径');
   });
   $('rmPick').addEventListener('click', function () {
     if (!rm.path || rm.error) { toast('请先进入一个存在的目录'); return; }
@@ -1553,6 +2223,48 @@
     var row = e.target.closest('[data-rm-go]');
     if (row) rmGo(row.getAttribute('data-rm-go'));
   });
+  $('fcClose').addEventListener('click', function () { $('fcDlg').close(); });
+  $('fcDlg').addEventListener('close', refresh);
+  $('fcRefresh').addEventListener('click', function () { loadFiles(true); });
+  $('fcFilter').addEventListener('input', function () { fc.dirShow['?'] = 0; renderFiles(); });
+  $('fcChips').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fc-filter]');
+    if (b) { fc.filter = b.getAttribute('data-fc-filter'); renderFiles(); }
+  });
+  $('fcTree').addEventListener('click', function (e) {
+    var more = e.target.closest('[data-fc-more]');
+    if (more) { var k = more.getAttribute('data-fc-more'); fc.dirShow[k] = (fc.dirShow[k] || FC_DIR_SHOW) + 500; renderFiles(); return; }
+    var dir = e.target.closest('[data-fc-dir]');
+    if (dir) { var d = dir.getAttribute('data-fc-dir'); fc.open[d] = !fc.open[d]; renderFiles(); return; }
+    var file = e.target.closest('[data-fc-path]');
+    if (file) selectFile(file.getAttribute('data-fc-path'));
+  });
+  $('fcBanner').addEventListener('click', function (e) {
+    if (e.target.closest('[data-fc-verify]')) selectFile(fc.sel, true);
+  });
+  $('fcSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fc-view]');
+    if (!b) return;
+    fc.view = b.getAttribute('data-fc-view');
+    Array.prototype.forEach.call($('fcSeg').children, function (x) { x.classList.toggle('on', x === b); });
+    renderDetail();
+  });
+  $('dtClose').addEventListener('click', function () { $('dtDlg').close(); });
+  $('dtDlg').addEventListener('close', refresh);
+  $('dtFilter').addEventListener('input', renderConflicts);
+  $('dtChips').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-dt-dir]');
+    if (!b) return;
+    var d = b.getAttribute('data-dt-dir');
+    dt.dir = d === '*' ? null : d;
+    renderConflicts();
+  });
+  $('dtCopyPaths').addEventListener('click', function () {
+    var list = visibleConflicts();
+    copyText(list.map(function (c) { return c.path; }).join('\n'), '已复制 ' + list.length + ' 个路径');
+  });
+  $('dtRule').addEventListener('click', function () { if (dt.dir) copyText('/' + dt.dir, '已复制排除规则 /' + dt.dir); });
+  $('dtCopyRaw').addEventListener('click', function () { copyText($('dtRaw').textContent, '已复制'); });
   $('srvSave').addEventListener('click', saveServer);
   $('srvClose').addEventListener('click', function () { $('srvDlg').close(); });
   $('srvReset').addEventListener('click', resetServerForm);
@@ -1576,8 +2288,7 @@
   $('clear').addEventListener('click', function () { $('out').textContent = ''; $('logbox').classList.remove('has'); });
   document.addEventListener('visibilitychange', refresh);
 
-  refresh();
-  setInterval(refresh, 3000);
+  poll();
 })();
 </script>
 </body>

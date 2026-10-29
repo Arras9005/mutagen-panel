@@ -50,7 +50,7 @@ function formatBytes(bytes: number): string {
  */
 export function pullDirectory(host: string, remotePath: string, local: string, excludes: string[], timeoutMs = 30 * 60_000): Promise<PullResult> {
   return new Promise((resolve) => {
-    const ssh = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, buildRemoteCommand(remotePath, excludes)], {
+    const ssh = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "Compression=yes", host, buildRemoteCommand(remotePath, excludes)], {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });

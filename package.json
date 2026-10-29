@@ -38,12 +38,13 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/mutagen-test.ts && tsx src/config-test.ts && tsx src/servers-test.ts && tsx src/pull-test.ts && tsx src/remote-test.ts",
+    "test": "tsx src/mutagen-test.ts && tsx src/config-test.ts && tsx src/servers-test.ts && tsx src/pull-test.ts && tsx src/remote-test.ts && tsx src/files-test.ts",
     "verify": "npm run typecheck && npm run test",
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run verify && npm run build"
   },
   "dependencies": {
+    "diff": "^9.0.0",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {

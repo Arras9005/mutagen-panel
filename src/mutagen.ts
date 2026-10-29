@@ -54,6 +54,57 @@ export interface ParsedSession {
   warns: string[];
 }
 
+export interface ConflictItem {
+  path: string;
+  /** 服务器端(alpha)对这个路径做了什么,如"新增文件"、"修改了文件"。没有则为空。 */
+  alpha: string;
+  /** 本地端(beta)对这个路径做了什么。 */
+  beta: string;
+}
+
+const KIND = /^(File|Directory|Symbolic link)\b/;
+
+function kindName(side: string): string | null {
+  const match = KIND.exec(side.trim());
+  if (!match) return null;
+  return match[1] === "File" ? "文件" : match[1] === "Directory" ? "目录" : "符号链接";
+}
+
+/** 把 `<non-existent> -> File (哈希)` 这样的变化描述翻译成中文。 */
+function summarizeChange(description: string): string {
+  const [left = "", right = ""] = description.split(" -> ");
+  const before = kindName(left);
+  const after = kindName(right);
+  if (before === null && after !== null) return `新增${after}`;
+  if (before !== null && after === null) return `删除了${before}`;
+  if (before !== null && after !== null) return before === after ? `修改了${before}` : `${before}变成${after}`;
+  return "";
+}
+
+/**
+ * 从 `mutagen sync list --long` 的输出里取出冲突的文件。
+ * 格式:`Conflicts:` 下面每行 `(alpha|beta) 路径 (旧状态 -> 新状态)`,同一路径两端各一行。
+ */
+export function parseConflicts(text: string): ConflictItem[] {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^\s*Conflicts:\s*$/.test(line));
+  if (start < 0) return [];
+  const entry = /^\s*\((alpha|beta)\)\s+(.+?)\s+\(((?:<non-existent>|(?:File|Directory|Symbolic link)\b).*->.*)\)\s*$/;
+  const byPath = new Map<string, ConflictItem>();
+  for (const line of lines.slice(start + 1)) {
+    const match = entry.exec(line);
+    if (!match) {
+      if (line.trim() === "" || /^\S/.test(line)) break; // 空行或回到顶格(如 Status:)就结束
+      continue; // 缩进的其他行(如省略号)跳过
+    }
+    const [, side, path = "", description = ""] = match;
+    const item = byPath.get(path) ?? { path, alpha: "", beta: "" };
+    item[side === "alpha" ? "alpha" : "beta"] = summarizeChange(description);
+    byPath.set(path, item);
+  }
+  return [...byPath.values()];
+}
+
 function field(block: string, label: string): string {
   const match = new RegExp(`^${label}:\\s*(.+?)\\s*$`, "m").exec(block);
   return match?.[1] ?? "";

@@ -136,6 +136,17 @@ const server = createServer(async (req, res) => {
         send(res, 200, panel.getServers());
         return;
       }
+      if (req.method === "GET" && pathname === "/api/files") {
+        const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+        send(res, 200, await panel.compareSessionFiles(query.get("id") ?? ""));
+        return;
+      }
+      if (req.method === "GET" && pathname === "/api/file-diff") {
+        const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+        const side = query.get("side");
+        send(res, 200, await panel.diffSessionFile(query.get("id") ?? "", query.get("path") ?? "", side === "local" || side === "server" ? side : "both"));
+        return;
+      }
       if (req.method === "GET" && pathname === "/api/remote-ls") {
         const query = new URL(req.url ?? "/", "http://localhost").searchParams;
         send(res, 200, await panel.browseRemote(query.get("host") ?? "", query.get("path") ?? "~"));
