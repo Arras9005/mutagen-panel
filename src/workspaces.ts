@@ -6,12 +6,17 @@ import { checkSsh, run, runWithInput } from "./mutagen.js";
 import { beginMark, endMark, ensureKey, keyFile, mergeSshConfig, readSshConfig, slash, sshDir, writeSshConfig } from "./servers.js";
 
 /**
- * 隔离区(envBuilder 的工作区):每套有自己的文件通道,是一个以工作区用户身份运行的 sshd,只在服务器内部可达。
+ * 隔离区(envBuilder 的工作区):每套有自己的文件通道,是一个 sshd,只在服务器内部可达。
  * 面板经你已经添加的服务器(root)用 ProxyJump 跳过去,所以:
- * - 登录进去就是工作区用户,Mutagen 创建的文件天然属于它,没有权限问题;
  * - 服务器上没有新的对外端口,本机不用开隧道;
  * - 主机密钥由服务器给出,面板直接钉住(StrictHostKeyChecking yes),不是「首次信任」。
  * 服务器上的命令是 /usr/local/sbin/workspace-ctl(files-list、files-info、set-sshkey、clear-sshkey),需要 root。
+ *
+ * 2026-11 起 envBuilder 的文件通道改用专用用户(ws02 的是 ws02f),工作区看不到它的进程和密钥:
+ * - 登录用户是 files.user(ws02f),同步目录在工作区用户 files.workspaceUser(ws02)的家目录里,
+ *   文件通道只看得见 /home/<workspaceUser>/<syncDir>;老版本的服务器没有 workspaceUser,登录用户就是工作区用户;
+ * - Mutagen 建的文件属于 ws02f,两边都能改靠服务器上的 ACL,所以建同步时给出可写的默认权限(见 WORKSPACE_FILE_MODE);
+ * - 升级时主机密钥会换:会话卡片上「按配置重建」会先重新接入(钉新的主机公钥、改登录用户),再重建。
  */
 export const CTL = "/usr/local/sbin/workspace-ctl";
 export const WORKSPACE_ID = /^ws0[1-8]$/;
@@ -19,13 +24,24 @@ export const WORKSPACE_ID = /^ws0[1-8]$/;
 export const DEFAULT_IGNORE = ["node_modules", "__pycache__/", ".cache/", "*.log", ".DS_Store", "Thumbs.db"];
 /** 默认同步的目录(相对工作区家目录):每套工作区创建时就有的 data 目录(只有这个用户能进) */
 export const DEFAULT_REMOTE_DIR = "data";
+/**
+ * 隔离区会话新建文件、目录的权限。Mutagen 默认是 0600、0700,服务器上 ACL 的掩码会让工作区用户只能看不能改;
+ * 工作区用户又改不了文件通道用户的文件的 ACL,服务器那边补不了,只能在这里给。执行位由 Mutagen 自己管,文件的不带。
+ */
+export const WORKSPACE_FILE_MODE = "0664";
+export const WORKSPACE_DIRECTORY_MODE = "0775";
+const SYNC_DIR_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$/;
+const USER_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 
 export interface FilesInfo {
   unit?: { active?: string };
   ok: boolean;
   address: string;
   port: number;
+  /** SSH 登录用的用户(新版本服务器上是文件通道的专用用户 wsNNf) */
   user: string;
+  /** 同步目录所在家目录的主人(工作区用户 wsNN);老版本服务器没有这个字段,和 user 相同 */
+  workspaceUser?: string;
   syncDir: string;
   keys: Array<{ fingerprint: string; comment: string }>;
   hostKey: { type: string; key: string; fingerprint: string } | null;
@@ -170,8 +186,25 @@ export function workspaceAlias(server: string, id: string, existing: WorkspaceCo
   return known ? known.alias : `${server}-${id}`;
 }
 
+/**
+ * 同步目录在哪里:owner 是家目录的主人(/home/<owner>),root 是能同步的范围。
+ * 新版本服务器(给出 workspaceUser)上文件通道只看得见 /home/<owner>/<syncDir>;老版本整个家目录都行。
+ */
+export interface SyncPlace { owner: string; root: string }
+
+export function syncPlace(files: Pick<FilesInfo, "user" | "workspaceUser" | "syncDir">): SyncPlace | null {
+  const owner = typeof files.workspaceUser === "string" ? files.workspaceUser : files.user;
+  if (typeof owner !== "string" || !USER_NAME.test(owner)) return null;
+  const home = `/home/${owner}`;
+  if (typeof files.workspaceUser !== "string") return { owner, root: home };
+  const dir = typeof files.syncDir === "string" && SYNC_DIR_NAME.test(files.syncDir) ? files.syncDir : DEFAULT_REMOTE_DIR;
+  return { owner, root: `${home}/${dir}` };
+}
+
 /** running:通道现在在线;verified:在线时登录验证通过了(没运行时是 false,也不算失败)。 */
-export type LinkResult = { ok: true; out: string; workspace: WorkspaceConfig; running: boolean; verified: boolean } | { ok: false; out: string };
+export type LinkResult =
+  | { ok: true; out: string; workspace: WorkspaceConfig; place: SyncPlace; running: boolean; verified: boolean }
+  | { ok: false; out: string };
 
 /**
  * 把一套隔离区接到面板上:向服务器取地址和主机公钥 → 登记面板的公钥 → 钉住主机公钥 → 写 ssh 配置 → (运行中时)验证登录。
@@ -189,6 +222,8 @@ export async function linkWorkspace(deps: LinkDeps, server: string, id: string, 
   if (!files || !files.hostKey || typeof files.address !== "string" || typeof files.user !== "string") {
     return { ok: false, out: "服务器没有返回文件通道的信息(服务器上的系统版本太旧,请先更新)。" };
   }
+  const place = syncPlace(files);
+  if (!place) return { ok: false, out: "服务器返回的隔离区用户名读不懂,服务器上的系统可能需要更新。" };
   const workspace: WorkspaceConfig = { alias, server, id, user: files.user, address: files.address, port: files.port };
 
   const publicKey = await deps.publicKey();
@@ -203,12 +238,12 @@ export async function linkWorkspace(deps: LinkDeps, server: string, id: string, 
 
   const running = data?.state === "running" && files.ok === true;
   if (!running) {
-    return { ok: true, running, verified: false, workspace, out: `隔离区 ${id} 已添加。它现在没有运行,启动之后会自动连上、开始同步。` };
+    return { ok: true, running, verified: false, workspace, place, out: `隔离区 ${id} 已添加。它现在没有运行,启动之后会自动连上、开始同步。` };
   }
   const check = await deps.check(alias);
   return check.ok
-    ? { ok: true, running, verified: true, workspace, out: `隔离区 ${id} 已就绪:${check.out}` }
-    : { ok: true, running, verified: false, workspace, out: `隔离区 ${id} 已添加,但登录验证没通过:\n${check.out}` };
+    ? { ok: true, running, verified: true, workspace, place, out: `隔离区 ${id} 已就绪:${check.out}` }
+    : { ok: true, running, verified: false, workspace, place, out: `隔离区 ${id} 已添加,但登录验证没通过:\n${check.out}` };
 }
 
 /** 撤销:去掉 ssh 配置和已知主机里的条目;尽力在服务器上撤销这把公钥(服务器连不上也没关系)。 */
@@ -227,12 +262,15 @@ export async function unlinkWorkspace(deps: LinkDeps, w: WorkspaceConfig): Promi
   return `已移除隔离区 ${w.alias}。${note}`;
 }
 
-/** 工作区目录:相对路径接在家目录后面,绝对路径必须在家目录里。不允许 .. 和控制字符。返回完整路径,不合法返回 null。 */
-export function resolveRemoteDir(user: string, input: string): string | null {
-  const home = `/home/${user}`;
+/**
+ * 工作区目录:相对路径接在 /home/<owner> 后面,结果必须在 root 里(默认整个家目录;新版本服务器上是 data 目录)。
+ * 不允许 .. 和控制字符。返回完整路径,不合法返回 null。
+ */
+export function resolveRemoteDir(owner: string, input: string, root = `/home/${owner}`): string | null {
+  const home = `/home/${owner}`;
   const raw = (input || DEFAULT_REMOTE_DIR).trim();
   if (raw === "" || raw.length > 300 || /[\u0000-\u001f\u007f\\]/.test(raw) || raw.split("/").includes("..")) return null;
   const full = raw.startsWith("/") ? raw : `${home}/${raw}`;
   const clean = full.replace(/\/+/g, "/").replace(/\/$/, "");
-  return clean === home || clean.startsWith(`${home}/`) ? clean : null;
+  return clean === root || clean.startsWith(`${root}/`) ? clean : null;
 }

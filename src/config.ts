@@ -29,7 +29,7 @@ export interface ServerConfig {
 }
 
 /**
- * 隔离区(envBuilder 的工作区)的文件通道:经服务器(server,上面的 root 别名)ProxyJump 到工作区自己的 sshd,以工作区用户登录。
+ * 隔离区(envBuilder 的工作区)的文件通道:经服务器(server,上面的 root 别名)ProxyJump 到工作区自己的 sshd。
  * alias 是写进 ~/.ssh/config 的 Host 名,会话的 host 就填它;密码和密钥都不在这里。
  */
 export interface WorkspaceConfig {
@@ -38,7 +38,7 @@ export interface WorkspaceConfig {
   server: string;
   /** 工作区编号,如 ws02 */
   id: string;
-  /** 工作区用户,登录用的名字(和编号相同) */
+  /** 登录用的名字:新版本服务器上是文件通道的专用用户(ws02f),老版本是工作区用户(和编号相同) */
   user: string;
   /** 工作区在服务器内部的地址(10.200.N.2)和文件通道端口 */
   address: string;

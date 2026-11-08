@@ -8,6 +8,7 @@ import { listRemote, type RemoteListing } from "./remote.js";
 import { removeServerEntry, resolveEndpoint, setupServer, testServer } from "./servers.js";
 import {
   DEFAULT_IGNORE, DEFAULT_REMOTE_DIR, defaultLinkDeps, linkWorkspace, listWorkspaces, resolveRemoteDir, sshCtl, unlinkWorkspace,
+  WORKSPACE_DIRECTORY_MODE, WORKSPACE_FILE_MODE,
   type CtlRunner, type LinkDeps, type WorkspaceRow,
 } from "./workspaces.js";
 import { checkSsh, parseConflicts, parseList, type ConflictItem, run, sameEndpoint, type ParsedSession, type RunResult } from "./mutagen.js";
@@ -226,8 +227,9 @@ export class Panel {
     if (!linked.ok) return linked;
     const workspace = linked.workspace;
 
-    const remote = resolveRemoteDir(workspace.user, typeof body.remote === "string" ? body.remote : "");
-    if (remote === null) return { ok: false, out: `工作区目录不合法:只能是 /home/${workspace.user} 里面的文件夹,不能含 ..。` };
+    const { owner, root } = linked.place;
+    const remote = resolveRemoteDir(owner, typeof body.remote === "string" ? body.remote : "", root);
+    if (remote === null) return { ok: false, out: `工作区目录不合法:只能是 ${root} 里面的文件夹,不能含 ..。` };
 
     const others = this.config.workspaces.filter((w) => w.alias !== workspace.alias);
     const group = `${server}·${id}`.slice(0, 40);
@@ -236,7 +238,7 @@ export class Panel {
     const session: SessionConfig = {
       id: name.replace(/-/g, "_"),
       name,
-      label: typeof body.label === "string" && body.label.trim() !== "" ? body.label.trim() : `${id} · ${remote.slice(`/home/${workspace.user}/`.length) || "家目录"}`,
+      label: typeof body.label === "string" && body.label.trim() !== "" ? body.label.trim() : `${id} · ${remote.slice(`/home/${owner}/`.length) || "家目录"}`,
       group,
       host: workspace.alias,
       remotePath: remote,
@@ -438,8 +440,10 @@ export class Panel {
 
   /** 删除已有会话(两端文件都保留)后按当前配置重新创建,用于让路径、模式、排除规则的修改生效。 */
   private async rebuildSession(session: SessionConfig): Promise<ActionResult> {
+    const relinked = await this.relinkWorkspace(session);
+    if (!relinked.ok) return relinked;
     const existing = await this.mutagen(["sync", "list", session.name], 20_000);
-    let removed = "";
+    let removed = relinked.out;
     if (existing.ok) {
       const terminated = await this.mutagen(["sync", "terminate", session.name]);
       if (!terminated.ok) return { ok: false, out: `删除旧会话失败:\n${terminated.out}` };
@@ -447,6 +451,35 @@ export class Panel {
     }
     const created = await this.createSession(session);
     return { ok: created.ok, out: `${removed}${created.out}` };
+  }
+
+  /**
+   * 隔离区的会话重建之前先重新接入:服务器升级后登录用户会变(ws02 → ws02f)、主机密钥会换,
+   * 不重新取一次的话新会话照样连不上。会话的目录不在新的同步范围里就停下,旧会话不动。不是隔离区的会话什么也不做。
+   */
+  private async relinkWorkspace(session: SessionConfig): Promise<ActionResult> {
+    const old = this.config.workspaces.find((w) => w.alias === session.host);
+    if (!old) return { ok: true, out: "" };
+    let linked;
+    try {
+      linked = await linkWorkspace(this.constructorDeps.link, old.server, old.id, this.config.workspaces);
+    } catch (error) {
+      return { ok: false, out: `重新接入隔离区 ${old.alias} 失败,旧会话没有动:\n${(error as Error).message}` };
+    }
+    if (!linked.ok) return { ok: false, out: `重新接入隔离区 ${old.alias} 失败,旧会话没有动:\n${linked.out}` };
+    const { owner, root } = linked.place;
+    if (resolveRemoteDir(owner, session.remotePath, root) === null) {
+      return {
+        ok: false,
+        out: `隔离区 ${old.alias} 现在只能同步 ${root} 里面的文件夹,这个会话同步的是 ${session.remotePath}。请先编辑会话,把服务器端目录改到 ${root} 里面,再重建。旧会话没有动。`,
+      };
+    }
+    try {
+      this.persist({ ...this.config, workspaces: this.config.workspaces.map((w) => (w.alias === old.alias ? linked.workspace : w)) });
+    } catch (error) {
+      return { ok: false, out: (error as Error).message };
+    }
+    return { ok: true, out: `已重新接入隔离区 ${old.alias}(登录用户 ${linked.workspace.user},主机公钥已按服务器给的更新)。\n` };
   }
 
   /**
@@ -515,15 +548,21 @@ export class Panel {
     const createdDir = !existsSync(session.local);
     mkdirSync(session.local, { recursive: true });
     const dirNote = createdDir ? `本地目录不存在,已新建:${session.local}\n(如果路径拼错了,请编辑会话改正后重建。)\n` : "";
-    const args = ["sync", "create", `--name=${session.name}`, `--mode=${session.mode}`];
-    if (session.ignoreVcs) args.push("--ignore-vcs");
-    for (const pattern of session.ignore) args.push(`--ignore=${pattern}`);
-    args.push(`${session.host}:${session.remotePath}`, session.local);
-
-    const created = await this.mutagen(args);
+    const workspace = this.config.workspaces.some((w) => w.alias === session.host);
+    const created = await this.mutagen(createArgs(session, workspace));
     const note = created.ok ? "\n创建成功。状态出现 Watching for changes 才算首次同步完成。" : "";
     return { ok: created.ok, out: `${ssh.out}\n${dirNote}${created.out}${note}`.trim() };
   }
+}
+
+/** mutagen sync create 的参数。隔离区的会话加上可写的默认权限(见 WORKSPACE_FILE_MODE)。 */
+export function createArgs(session: SessionConfig, workspace: boolean): string[] {
+  const args = ["sync", "create", `--name=${session.name}`, `--mode=${session.mode}`];
+  if (workspace) args.push(`--default-file-mode=${WORKSPACE_FILE_MODE}`, `--default-directory-mode=${WORKSPACE_DIRECTORY_MODE}`);
+  if (session.ignoreVcs) args.push("--ignore-vcs");
+  for (const pattern of session.ignore) args.push(`--ignore=${pattern}`);
+  args.push(`${session.host}:${session.remotePath}`, session.local);
+  return args;
 }
 
 function describeServer(server: ServerConfig | undefined): string {

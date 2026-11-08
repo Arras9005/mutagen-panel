@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { parseConfig, parseWorkspace, serializeConfig, type WorkspaceConfig } from "./config.js";
+import { createArgs } from "./actions.js";
+import { parseConfig, parseWorkspace, serializeConfig, type SessionConfig, type WorkspaceConfig } from "./config.js";
 import {
-  fingerprintOf, linkWorkspace, listWorkspaces, mergeKnownHosts, parseCtlOutput, renderWorkspaceBlock, resolveRemoteDir, unlinkWorkspace,
+  fingerprintOf, linkWorkspace, listWorkspaces, mergeKnownHosts, parseCtlOutput, renderWorkspaceBlock, resolveRemoteDir, syncPlace, unlinkWorkspace,
   type CtlResult, type CtlRunner, type LinkDeps,
 } from "./workspaces.js";
 import { mergeSshConfig } from "./servers.js";
@@ -39,6 +40,35 @@ assert.equal(resolveRemoteDir("ws02", "/home/ws02"), "/home/ws02");
 for (const bad of ["../x", "a/../../b", "/etc", "/home/ws03/x", "/home/ws02x", "a\\b", "a\nb", "x".repeat(400)]) {
   assert.equal(resolveRemoteDir("ws02", bad), null, bad);
 }
+// 新版本服务器:文件通道只看得见 data,目录必须在它里面
+assert.equal(resolveRemoteDir("ws02", "", "/home/ws02/data"), "/home/ws02/data");
+assert.equal(resolveRemoteDir("ws02", "data/proj", "/home/ws02/data"), "/home/ws02/data/proj");
+assert.equal(resolveRemoteDir("ws02", "/home/ws02/data/proj/", "/home/ws02/data"), "/home/ws02/data/proj");
+for (const bad of ["proj", "/home/ws02", "/home/ws02/database", "data/../x", "/home/ws02f/data"]) {
+  assert.equal(resolveRemoteDir("ws02", bad, "/home/ws02/data"), null, bad);
+}
+
+// ---- 同步目录在哪里:新版本服务器的登录用户(ws02f)和家目录的主人(ws02)不是同一个
+assert.deepEqual(syncPlace({ user: "ws02", syncDir: "data" }), { owner: "ws02", root: "/home/ws02" });
+assert.deepEqual(syncPlace({ user: "ws02f", workspaceUser: "ws02", syncDir: "data" }), { owner: "ws02", root: "/home/ws02/data" });
+assert.deepEqual(syncPlace({ user: "ws02f", workspaceUser: "ws02", syncDir: "../x" }), { owner: "ws02", root: "/home/ws02/data" });
+assert.equal(syncPlace({ user: "ws02f", workspaceUser: "a b", syncDir: "data" }), null);
+assert.equal(syncPlace({ user: "../x", syncDir: "data" }), null);
+
+// ---- 建同步的参数:隔离区的会话带可写的默认权限(Mutagen 默认 0600/0700,工作区用户会改不了)
+{
+  const session: SessionConfig = {
+    id: "a", name: "ws02-data", label: "", group: "", host: "vps-ws02", remotePath: "/home/ws02/data", local: "D:\\proj",
+    mode: "two-way-safe", ignoreVcs: false, ignore: ["node_modules"],
+  };
+  assert.deepEqual(createArgs(session, true), [
+    "sync", "create", "--name=ws02-data", "--mode=two-way-safe", "--default-file-mode=0664", "--default-directory-mode=0775",
+    "--ignore=node_modules", "vps-ws02:/home/ws02/data", "D:\\proj",
+  ]);
+  assert.deepEqual(createArgs({ ...session, ignoreVcs: true }, false), [
+    "sync", "create", "--name=ws02-data", "--mode=two-way-safe", "--ignore-vcs", "--ignore=node_modules", "vps-ws02:/home/ws02/data", "D:\\proj",
+  ]);
+}
 
 // ---- 指纹:和 OpenSSH 的 SHA256 写法一致
 const blob = Buffer.concat([Buffer.from([0, 0, 0, 11]), Buffer.from("ssh-ed25519"), Buffer.from([0, 0, 0, 32]), Buffer.alloc(32, 7)]);
@@ -63,7 +93,7 @@ for (const bad of [{ address: "8.8.8.8" }, { address: "10.200.1.999" }, { alias:
 }
 
 // ---- 接入流程(服务器和本机文件都用假的)
-function fakeDeps(opts: { state?: string; ok?: boolean; hostKey?: boolean; fail?: string; check?: boolean } = {}) {
+function fakeDeps(opts: { state?: string; ok?: boolean; hostKey?: boolean; fail?: string; check?: boolean; filesUser?: boolean } = {}) {
   const calls: Array<{ args: string[]; input?: string }> = [];
   const store = { ssh: "", known: "" };
   const ctl: CtlRunner = async (_server, args, input): Promise<CtlResult<unknown>> => {
@@ -74,7 +104,12 @@ function fakeDeps(opts: { state?: string; ok?: boolean; hostKey?: boolean; fail?
         ok: true,
         data: {
           id: args[1], state: opts.state ?? "running",
-          files: { ok: opts.ok ?? true, address: "10.200.1.2", port: 2222, user: args[1], syncDir: "sync", keys: [], hostKey: opts.hostKey === false ? null : { type: "ssh-ed25519", key: key, fingerprint: "SHA256:x" } },
+          files: {
+            ok: opts.ok ?? true, address: "10.200.1.2", port: 2222, syncDir: opts.filesUser ? "data" : "sync", keys: [],
+            // filesUser:新版本服务器(文件通道用专用用户 ws02f 登录,同步目录在 ws02 的家目录里)
+            ...(opts.filesUser ? { user: `${args[1]}f`, workspaceUser: args[1] } : { user: args[1] }),
+            hostKey: opts.hostKey === false ? null : { type: "ssh-ed25519", key: key, fingerprint: "SHA256:x" },
+          },
         },
       };
     }
@@ -105,6 +140,20 @@ function fakeDeps(opts: { state?: string; ok?: boolean; hostKey?: boolean; fail?
   assert.ok(again.ok);
   assert.equal(store.ssh.split("Host vps-ws02\n").length, 2);
   assert.equal(store.known.split("\n").filter(Boolean).length, 1);
+}
+{
+  // 老版本服务器:登录用户就是工作区用户,整个家目录都能同步
+  const res = await linkWorkspace(fakeDeps().deps, "vps", "ws02", []);
+  assert.deepEqual(res.ok && [res.workspace.user, res.place], ["ws02", { owner: "ws02", root: "/home/ws02" }]);
+}
+{
+  // 新版本服务器:登录用户 ws02f,同步范围是 /home/ws02/data;再接一次(服务器升级后)同一个别名换成新用户和新主机公钥
+  const { deps, store } = fakeDeps({ filesUser: true });
+  store.known = `vps-ws02 ssh-ed25519 OLDKEY\n`;
+  const res = await linkWorkspace(deps, "vps", "ws02", [ws]);
+  assert.deepEqual(res.ok && [res.workspace.alias, res.workspace.user, res.place], ["vps-ws02", "ws02f", { owner: "ws02", root: "/home/ws02/data" }]);
+  assert.match(store.ssh, /User ws02f\n/);
+  assert.equal(store.known, `vps-ws02 ${key}\n`);
 }
 {
   // 没运行:接入完成,不验证,不算失败
