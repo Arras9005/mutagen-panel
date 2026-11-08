@@ -30,6 +30,7 @@
     "web",
     "config.example.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {
