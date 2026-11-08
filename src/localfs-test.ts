@@ -19,7 +19,10 @@ try {
   assert.deepEqual(list.entries.map((e) => e.name), ["2-dir", "10-dir", "a-dir", "b-dir"]);
   assert.equal(list.parent, join(base, ".."));
   assert.ok(list.roots.length >= 2);
-  assert.equal(listLocal("").path, homedir());
+  // 空路径:Windows 是盘符列表(path 为空),其他系统是主目录
+  const top = listLocal("");
+  assert.equal(top.ok, true);
+  assert.equal(top.path, process.platform === "win32" ? "" : homedir());
 
   // 不存在、不是绝对路径、是文件
   assert.equal(listLocal(join(base, "nope")).ok, false);
@@ -27,8 +30,9 @@ try {
   assert.equal(listLocal(join(base, "file.txt")).ok, false);
 
   // 上一级
-  assert.equal(parentOf("/"), null);
-  assert.equal(parentOf("/a/b"), "/a");
+  const rootPath = process.platform === "win32" ? "C:\\" : "/";
+  assert.equal(parentOf(rootPath), process.platform === "win32" ? "" : null);   // 盘符根的上一级是盘符列表
+  assert.equal(parentOf(join(base, "a-dir")), base);
   assert.equal(parentOf(""), null);
 
   // 快捷入口
