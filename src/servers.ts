@@ -9,13 +9,13 @@ export interface ServerResult {
   out: string;
 }
 
-const sshDir = (): string => join(homedir(), ".ssh");
+export const sshDir = (): string => join(homedir(), ".ssh");
 const sshConfigFile = (): string => join(sshDir(), "config");
-const keyFile = (): string => join(sshDir(), "mutagen-panel_ed25519");
+export const keyFile = (): string => join(sshDir(), "mutagen-panel_ed25519");
 
-const slash = (path: string): string => path.replace(/\\/g, "/");
-const beginMark = (alias: string): string => `# >>> mutagen-panel:${alias} >>>`;
-const endMark = (alias: string): string => `# <<< mutagen-panel:${alias} <<<`;
+export const slash = (path: string): string => path.replace(/\\/g, "/");
+export const beginMark = (alias: string): string => `# >>> mutagen-panel:${alias} >>>`;
+export const endMark = (alias: string): string => `# <<< mutagen-panel:${alias} <<<`;
 
 /** 面板写入 ~/.ssh/config 的条目;StrictHostKeyChecking accept-new 让首次连接自动记录主机指纹,又不会放过指纹变化。 */
 export function renderSshBlock(server: ServerConfig, identityFile: string): string {
@@ -65,17 +65,17 @@ export function mergeSshConfig(existing: string, alias: string, block: string | 
   return `${base}${separator}${base === "" ? "" : "\n"}${block}`;
 }
 
-function readSshConfig(): string {
+export function readSshConfig(): string {
   return existsSync(sshConfigFile()) ? readFileSync(sshConfigFile(), "utf8") : "";
 }
 
-function writeSshConfig(content: string): void {
+export function writeSshConfig(content: string): void {
   mkdirSync(sshDir(), { recursive: true });
   writeFileSync(sshConfigFile(), content, "utf8");
 }
 
 /** 没有面板专用密钥就生成一个(无口令的 ed25519),返回公钥那一行。 */
-async function ensureKey(): Promise<string> {
+export async function ensureKey(): Promise<string> {
   if (!existsSync(keyFile())) {
     mkdirSync(sshDir(), { recursive: true });
     const result = await run("ssh-keygen", ["-t", "ed25519", "-N", "", "-C", "mutagen-panel", "-f", keyFile()], 30_000);

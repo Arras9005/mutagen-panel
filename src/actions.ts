@@ -1,10 +1,15 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { parseConfig, parseServer, repairSessionNames, saveConfig, type PanelConfig, type ServerConfig, type SessionConfig } from "./config.js";
+import { SYNC_MODES, parseConfig, parseServer, randomSuffix, repairSessionNames, saveConfig, type PanelConfig, type ServerConfig, type SessionConfig, type SyncMode, type WorkspaceConfig } from "./config.js";
+import { defaultEnvDeps, diagnose, findMutagen } from "./env.js";
 import { buildExcludes, pullDirectory } from "./pull.js";
 import { compareFiles, diffFile, type DiffSides, type FileCompare, type FileDiff } from "./files.js";
 import { listRemote, type RemoteListing } from "./remote.js";
 import { removeServerEntry, resolveEndpoint, setupServer, testServer } from "./servers.js";
+import {
+  DEFAULT_IGNORE, DEFAULT_REMOTE_DIR, defaultLinkDeps, linkWorkspace, listWorkspaces, resolveRemoteDir, sshCtl, unlinkWorkspace,
+  type CtlRunner, type LinkDeps, type WorkspaceRow,
+} from "./workspaces.js";
 import { checkSsh, parseConflicts, parseList, type ConflictItem, run, sameEndpoint, type ParsedSession, type RunResult } from "./mutagen.js";
 
 export interface ActionResult {
@@ -89,6 +94,7 @@ export class Panel {
         openBrowser: current.openBrowser,
         ...(current.token ? { token: current.token } : {}),
         servers: current.servers,
+        workspaces: current.workspaces,
         groups: body.groups ?? current.groups,
         host: body.host ?? current.host,
         sessions: repair.value,
@@ -103,7 +109,7 @@ export class Panel {
 
   getServers(): ServerList {
     const { servers, host, sessions } = this.config;
-    const aliases = new Set<string>(servers.map((s) => s.alias));
+    const aliases = new Set<string>([...servers.map((s) => s.alias), ...this.config.workspaces.map((w) => w.alias)]);
     if (host) aliases.add(host);
     for (const session of sessions) aliases.add(session.host);
     return { servers, aliases: [...aliases] };
@@ -186,13 +192,114 @@ export class Panel {
       : Promise.resolve({ ok: false, out: `未知服务器:${alias}` });
   }
 
+  // ---------------------------------------------------------------- 隔离区
+
+  constructorDeps: { ctl: CtlRunner; link: LinkDeps } = { ctl: sshCtl, link: defaultLinkDeps };
+
+  /** 列出某台服务器上的隔离区(需要这台服务器登录用的是 root)。 */
+  async listWorkspaces(server: string): Promise<{ ok: boolean; out: string; workspaces: WorkspaceRow[]; defaults: { remoteDir: string; ignore: string[]; mode: string } }> {
+    const defaults = { remoteDir: DEFAULT_REMOTE_DIR, ignore: DEFAULT_IGNORE, mode: "two-way-safe" };
+    if (!this.config.servers.some((s) => s.alias === server)) return { ok: false, out: `没有通过面板添加的服务器:${server}`, workspaces: [], defaults };
+    const res = await listWorkspaces(this.constructorDeps.ctl, server, this.config.workspaces);
+    return res.ok ? { ok: true, out: "", workspaces: res.rows, defaults } : { ok: false, out: res.out, workspaces: [], defaults };
+  }
+
+  /** 已经接到面板上的隔离区。 */
+  getWorkspaces(): WorkspaceConfig[] {
+    return this.config.workspaces;
+  }
+
+  /**
+   * 一步到位:把隔离区接上(登记公钥、钉主机密钥、写 ssh 配置),再按给定的文件夹建一个同步会话并启动。
+   * 同一套隔离区可以有任意多个会话(不同文件夹、不同项目);本地目录各不相同。
+   */
+  async addWorkspaceSync(body: Record<string, unknown>): Promise<ActionResult> {
+    const server = typeof body.server === "string" ? body.server : "";
+    const id = typeof body.id === "string" ? body.id : "";
+    const localRaw = typeof body.local === "string" ? body.local.trim() : "";
+    const mode = (typeof body.mode === "string" && body.mode !== "" ? body.mode : "two-way-safe") as SyncMode;
+    if (!this.config.servers.some((s) => s.alias === server)) return { ok: false, out: `没有通过面板添加的服务器:${server || "(空)"}` };
+    if (localRaw === "") return { ok: false, out: "请填写本地文件夹。" };
+    if (!SYNC_MODES.includes(mode)) return { ok: false, out: `同步模式不对:${mode}` };
+
+    const linked = await linkWorkspace(this.constructorDeps.link, server, id, this.config.workspaces);
+    if (!linked.ok) return linked;
+    const workspace = linked.workspace;
+
+    const remote = resolveRemoteDir(workspace.user, typeof body.remote === "string" ? body.remote : "");
+    if (remote === null) return { ok: false, out: `工作区目录不合法:只能是 /home/${workspace.user} 里面的文件夹,不能含 ..。` };
+
+    const others = this.config.workspaces.filter((w) => w.alias !== workspace.alias);
+    const group = `${server}·${id}`.slice(0, 40);
+    const name = this.uniqueSessionName(`${id}-${(remote.split("/").pop() || "sync").replace(/[^A-Za-z0-9-]+/g, "-")}`);
+    const ignore = Array.isArray(body.ignore) ? body.ignore.filter((p): p is string => typeof p === "string" && p.trim() !== "") : DEFAULT_IGNORE;
+    const session: SessionConfig = {
+      id: name.replace(/-/g, "_"),
+      name,
+      label: typeof body.label === "string" && body.label.trim() !== "" ? body.label.trim() : `${id} · ${remote.slice(`/home/${workspace.user}/`.length) || "家目录"}`,
+      group,
+      host: workspace.alias,
+      remotePath: remote,
+      local: localRaw,
+      mode,
+      ignoreVcs: body.ignoreVcs === true,
+      ignore,
+    };
+    try {
+      const next = parseConfig({
+        ...this.config,
+        workspaces: [...others, workspace],
+        groups: this.config.groups.includes(group) ? this.config.groups : [...this.config.groups, group],
+        sessions: [...this.config.sessions, session],
+      });
+      this.persist(next);
+    } catch (error) {
+      return { ok: false, out: (error as Error).message };
+    }
+    const created = await this.createSession(this.config.sessions.find((s) => s.name === name) ?? session);
+    // 通道在线时创建失败才是真失败;工作区没运行时创建不了是预料之中,配置已经存好,启动后点卡片上的「创建」即可
+    const tail = linked.running ? "" : "\n(这一套现在没有运行,启动之后点卡片上的「创建」开始同步。)";
+    return { ok: created.ok || !linked.running, out: `${linked.out}\n${created.out}${tail}`.trim() };
+  }
+
+  private uniqueSessionName(base: string): string {
+    const clean = base.replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+    const start = /^[A-Za-z]/.test(clean) ? clean : `sync-${clean}`;
+    const taken = new Set(this.config.sessions.map((s) => s.name));
+    return taken.has(start) ? `${start}-${randomSuffix()}` : start;
+  }
+
+  /** 把隔离区从面板移除。还有会话在用它就拒绝(先删会话)。 */
+  async removeWorkspace(alias: string): Promise<ActionResult> {
+    const w = this.config.workspaces.find((x) => x.alias === alias);
+    if (!w) return { ok: false, out: `没有这个隔离区:${alias}` };
+    const using = this.config.sessions.filter((s) => s.host === alias).map((s) => s.label);
+    if (using.length > 0) return { ok: false, out: `隔离区 ${alias} 还在被使用(${using.join("、")}),请先删除这些会话。` };
+    try {
+      const out = await unlinkWorkspace(this.constructorDeps.link, w);
+      this.persist({ ...this.config, workspaces: this.config.workspaces.filter((x) => x.alias !== alias) });
+      return { ok: true, out };
+    } catch (error) {
+      return { ok: false, out: `清理 ~/.ssh/config 失败:${(error as Error).message}` };
+    }
+  }
+
   private persist(next: PanelConfig): void {
     saveConfig(this.configFile, next);
     this.config = next;
   }
 
-  private mutagen(args: string[], timeoutMs?: number): Promise<RunResult> {
-    return run(this.config.mutagen, args, timeoutMs);
+  private lastFindAt = 0;
+
+  /** 调用 mutagen。配置里的路径找不到时,自动去 PATH 和常见位置找一次(找不到一分钟内不再找),找到就改写配置。 */
+  private async mutagen(args: string[], timeoutMs?: number): Promise<RunResult> {
+    const result = await run(this.config.mutagen, args, timeoutMs);
+    if (result.code !== -1 || Date.now() - this.lastFindAt < 60_000) return result;
+    this.lastFindAt = Date.now();
+    const found = await findMutagen(defaultEnvDeps, this.config.mutagen);
+    if (!found) return result;
+    this.persist({ ...this.config, mutagen: found.path });
+    return run(found.path, args, timeoutMs);
   }
 
   /** 同时到达的状态请求(多个页面、或上一次还没算完)共用同一次计算,不重复调用 Mutagen。 */
@@ -314,10 +421,13 @@ export class Panel {
   }
 
   private async checkEnvironment(): Promise<ActionResult> {
-    const version = await this.mutagen(["version"], 20_000);
-    const daemon = await this.mutagen(["daemon", "start"], 20_000);
-    const lines = [`[Mutagen] ${version.out}`, `[后台服务] ${daemon.out || "已运行"}`];
-    let ok = version.ok;
+    const report = await diagnose(defaultEnvDeps, this.config.mutagen);
+    const lines = [report.text];
+    if (report.fixedPath) {
+      this.persist({ ...this.config, mutagen: report.fixedPath });
+      lines.push(`\n已把配置里的 mutagen 路径改为:${report.fixedPath}`);
+    }
+    let ok = report.ok;
     for (const host of new Set(this.config.sessions.map((s) => s.host))) {
       const ssh = await checkSsh(host);
       ok = ok && ssh.ok;

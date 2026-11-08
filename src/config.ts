@@ -28,6 +28,23 @@ export interface ServerConfig {
   user: string;
 }
 
+/**
+ * 隔离区(envBuilder 的工作区)的文件通道:经服务器(server,上面的 root 别名)ProxyJump 到工作区自己的 sshd,以工作区用户登录。
+ * alias 是写进 ~/.ssh/config 的 Host 名,会话的 host 就填它;密码和密钥都不在这里。
+ */
+export interface WorkspaceConfig {
+  alias: string;
+  /** 经哪台服务器(面板里添加的服务器别名)跳过去 */
+  server: string;
+  /** 工作区编号,如 ws02 */
+  id: string;
+  /** 工作区用户,登录用的名字(和编号相同) */
+  user: string;
+  /** 工作区在服务器内部的地址(10.200.N.2)和文件通道端口 */
+  address: string;
+  port: number;
+}
+
 export interface PanelConfig {
   mutagen: string;
   /** 顶层默认 SSH 别名;会话未单独写 host 时使用。 */
@@ -36,6 +53,8 @@ export interface PanelConfig {
   openBrowser: boolean;
   token?: string;
   servers: ServerConfig[];
+  /** 隔离区的文件通道(见 WorkspaceConfig)。 */
+  workspaces: WorkspaceConfig[];
   /** 用户自定义的分组,按显示顺序排列。 */
   groups: string[];
   sessions: SessionConfig[];
@@ -113,6 +132,26 @@ export function parseServer(raw: unknown, what = "服务器"): ServerConfig {
   return { alias, host, port, user };
 }
 
+const WORKSPACE_ID = /^[a-z][a-z0-9]{1,15}$/;
+const PRIVATE_IPV4 = /^10\.200\.\d{1,3}\.\d{1,3}$/;
+
+export function parseWorkspace(raw: unknown, what = "隔离区"): WorkspaceConfig {
+  const w = asRecord(raw, what);
+  const alias = text(w.alias);
+  const server = text(w.server);
+  const id = text(w.id);
+  const user = text(w.user);
+  const address = text(w.address);
+  const port = Number(w.port ?? 2222);
+  if (!SERVER_ALIAS.test(alias)) throw new Error(`隔离区别名只能用字母、数字、. _ -,且以字母或数字开头:${alias || "(空)"}`);
+  if (!SERVER_ALIAS.test(server)) throw new Error(`隔离区 ${alias} 的服务器别名不合法:${server || "(空)"}`);
+  if (!WORKSPACE_ID.test(id)) throw new Error(`隔离区编号不合法:${id || "(空)"}`);
+  if (!SERVER_USER.test(user)) throw new Error(`隔离区用户名不合法:${user || "(空)"}`);
+  if (!PRIVATE_IPV4.test(address) || address.split(".").some((part) => Number(part) > 255)) throw new Error(`隔离区地址不合法:${address || "(空)"}`);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("隔离区端口必须是 1-65535 的整数");
+  return { alias, server, id, user, address, port };
+}
+
 /** 校验并规范化配置;任何问题都抛出带中文说明的 Error。 */
 export function parseConfig(raw: unknown): PanelConfig {
   const root = asRecord(raw, "config.json");
@@ -175,6 +214,15 @@ export function parseConfig(raw: unknown): PanelConfig {
     return server;
   });
 
+  const rawWorkspaces = root.workspaces === undefined ? [] : root.workspaces;
+  if (!Array.isArray(rawWorkspaces)) throw new Error("workspaces 必须是数组");
+  const workspaces = rawWorkspaces.map((item, index) => {
+    const workspace = parseWorkspace(item, `workspaces[${index}]`);
+    if (aliases.has(workspace.alias.toLowerCase())) throw new Error(`别名不能重复(服务器和隔离区共用一套别名):${workspace.alias}`);
+    aliases.add(workspace.alias.toLowerCase());
+    return workspace;
+  });
+
   const rawGroups = root.groups === undefined ? [] : root.groups;
   if (!Array.isArray(rawGroups)) throw new Error("groups 必须是数组");
   const groups: string[] = [];
@@ -201,6 +249,7 @@ export function parseConfig(raw: unknown): PanelConfig {
     openBrowser: root.openBrowser !== false,
     ...(token ? { token } : {}),
     servers,
+    workspaces,
     groups,
     sessions,
   };
@@ -208,7 +257,7 @@ export function parseConfig(raw: unknown): PanelConfig {
 
 /** 首次运行时写入的默认配置:没有服务器和会话,打开页面后再添加。 */
 export function defaultConfig(): PanelConfig {
-  return { mutagen: "mutagen", host: "", port: 8765, openBrowser: true, servers: [], groups: [], sessions: [] };
+  return { mutagen: "mutagen", host: "", port: 8765, openBrowser: true, servers: [], workspaces: [], groups: [], sessions: [] };
 }
 
 /**
@@ -264,6 +313,7 @@ export function serializeConfig(config: PanelConfig): string {
         openBrowser: config.openBrowser,
         ...(config.token ? { token: config.token } : {}),
         ...(config.servers.length > 0 ? { servers: config.servers } : {}),
+        ...(config.workspaces.length > 0 ? { workspaces: config.workspaces } : {}),
         ...(config.groups.length > 0 ? { groups: config.groups } : {}),
         sessions: config.sessions.map((s) => ({
           id: s.id,

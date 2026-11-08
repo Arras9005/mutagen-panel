@@ -152,6 +152,25 @@ const server = createServer(async (req, res) => {
         send(res, 200, await panel.browseRemote(query.get("host") ?? "", query.get("path") ?? "~"));
         return;
       }
+      if (req.method === "GET" && pathname === "/api/workspaces") {
+        send(res, 200, { workspaces: panel.getWorkspaces() });
+        return;
+      }
+      if (req.method === "GET" && pathname === "/api/workspaces/list") {
+        const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+        send(res, 200, await panel.listWorkspaces(query.get("server") ?? ""));
+        return;
+      }
+      if (req.method === "POST" && pathname === "/api/workspaces/sync") {
+        const body = JSON.parse((await readBody(req)) || "{}") as Record<string, unknown>;
+        send(res, 200, await panel.addWorkspaceSync(body));
+        return;
+      }
+      if (req.method === "POST" && pathname === "/api/workspaces/delete") {
+        const body = JSON.parse((await readBody(req)) || "{}") as { alias?: unknown };
+        send(res, 200, await panel.removeWorkspace(String(body.alias ?? "")));
+        return;
+      }
       if (req.method === "POST" && pathname === "/api/servers") {
         const body = JSON.parse((await readBody(req)) || "{}") as Record<string, unknown>;
         send(res, 200, await panel.saveServer(body));

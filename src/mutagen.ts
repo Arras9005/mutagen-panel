@@ -29,6 +29,28 @@ export function run(command: string, args: string[], timeoutMs = 60_000): Promis
   });
 }
 
+/** 同 run,但把 input 写进子进程的标准输入(用于 `ssh 服务器 命令 < 公钥` 这类调用)。 */
+export function runWithInput(command: string, args: string[], input: string, timeoutMs = 60_000): Promise<RunResult> {
+  return new Promise((resolve) => {
+    const child = execFile(
+      command,
+      args,
+      { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, windowsHide: true, encoding: "utf8" },
+      (error, stdout, stderr) => {
+        if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+          resolve({ ok: false, code: -1, stdout: "", out: `找不到可执行文件:${command}` });
+          return;
+        }
+        const code = error ? (typeof error.code === "number" ? error.code : 1) : 0;
+        const timedOut = error?.killed ? "\n(命令超时,已终止)" : "";
+        resolve({ ok: !error, code, stdout, out: `${stdout}${stderr}`.trim() + timedOut });
+      },
+    );
+    child.stdin?.on("error", () => undefined);
+    child.stdin?.end(input);
+  });
+}
+
 export async function checkSsh(host: string): Promise<{ ok: boolean; out: string }> {
   const result = await run("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "echo ok"], 20_000);
   if (result.stdout.trim() === "ok") {

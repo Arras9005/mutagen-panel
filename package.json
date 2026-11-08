@@ -1,6 +1,6 @@
 {
   "name": "mutagen-panel",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local web dashboard for Mutagen: create, pause, flush and monitor sync sessions in the browser; add servers with a password once and use key login afterwards; groups, drag & drop, remote directory browser. 本机运行的 Mutagen 网页管理面板。",
   "keywords": [
     "mutagen",
@@ -38,7 +38,7 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/mutagen-test.ts && tsx src/config-test.ts && tsx src/servers-test.ts && tsx src/pull-test.ts && tsx src/remote-test.ts && tsx src/files-test.ts",
+    "test": "tsx src/mutagen-test.ts && tsx src/config-test.ts && tsx src/servers-test.ts && tsx src/pull-test.ts && tsx src/remote-test.ts && tsx src/files-test.ts && tsx src/workspaces-test.ts && tsx src/env-test.ts",
     "verify": "npm run typecheck && npm run test",
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run verify && npm run build"

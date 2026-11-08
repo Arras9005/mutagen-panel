@@ -492,6 +492,7 @@
       <button data-act="pause" data-id="*" title="暂停同步,不会删除会话">暂停全部</button>
       <button data-act="resume" data-id="*">恢复全部</button>
       <button data-ui="add">添加会话</button>
+      <button data-ui="workspaces" title="把隔离工作区里的文件夹和本机文件夹自动保持一致">隔离区同步</button>
       <details class="menu">
         <summary>更多</summary>
         <div class="menu-pop">
@@ -499,6 +500,7 @@
           <button data-act="env">环境检查</button>
           <hr>
           <button data-ui="groups">分组管理</button>
+          <button data-ui="workspaces">隔离区同步</button>
           <button data-ui="servers">服务器管理</button>
           <button data-ui="host">默认服务器设置</button>
           <button data-act="register">注册开机自启</button>
@@ -592,6 +594,42 @@
     <button id="srvClose" type="button">关闭</button>
     <button id="srvReset" type="button">清空表单</button>
     <button class="primary" id="srvSave" type="button">连接并保存</button>
+  </div>
+</dialog>
+
+<dialog id="wsDlg" class="wide">
+  <div class="dlg-head">隔离区同步<small>把隔离工作区里的文件夹和本机文件夹自动保持一致;以工作区自己的用户同步,文件权限不会错</small></div>
+  <div class="dlg-body">
+    <section class="sec">
+      <h3>1. 选一个隔离区</h3>
+      <div class="field"><label for="wServer">服务器</label><select id="wServer"></select>
+        <div class="hint">装了隔离工作区系统的那台服务器,要用 root 登录。没有就先到"更多 → 服务器管理"添加。</div></div>
+      <div id="wList"></div>
+    </section>
+    <section class="sec" id="wForm" hidden>
+      <h3 id="wFormTitle">2. 要同步的文件夹</h3>
+      <div class="field"><label for="wLocal">本地文件夹</label><input type="text" id="wLocal" placeholder="例如:D:/projects/my-app" autocomplete="off">
+        <div class="hint">不存在会自动建。同一个隔离区可以添加多个文件夹(不同项目各一个)。</div></div>
+      <div class="field"><label for="wRemote">隔离区里的文件夹</label><input type="text" id="wRemote" placeholder="sync" autocomplete="off">
+        <div class="hint">写相对路径,在隔离区的家目录里,默认 sync;也可以写 /home/用户/开头的完整路径。不要同步整个家目录。</div></div>
+      <div class="field"><label for="wMode">同步模式</label>
+        <select id="wMode">
+          <option value="two-way-safe">双向 · 冲突时暂停等你处理(推荐)</option>
+          <option value="two-way-resolved">双向 · 冲突时以隔离区为准</option>
+          <option value="one-way-replica">单向 · 隔离区到本地,完全镜像</option>
+          <option value="one-way-safe">单向 · 隔离区到本地,保留本地独有文件</option>
+        </select></div>
+      <div class="field"><label for="wIgnore">排除规则(每行一条)</label><textarea id="wIgnore" spellcheck="false"></textarea></div>
+    </section>
+    <section class="sec">
+      <h3>已添加的隔离区</h3>
+      <div id="wLinked"></div>
+    </section>
+    <div class="formerr" id="wErr"></div>
+  </div>
+  <div class="dlg-foot">
+    <button id="wClose" type="button">关闭</button>
+    <button class="primary" id="wCreate" type="button" disabled>创建并开始同步</button>
   </div>
 </dialog>
 
@@ -990,7 +1028,7 @@
     document.querySelectorAll('#cards button[data-act], #cards button[data-ui]').forEach(function (b) { b.disabled = value; });
   }
 
-  function dialogOpen() { return $('dlg').open || $('delDlg').open || $('srvDlg').open || $('grpDlg').open || $('askDlg').open || $('rmDlg').open || $('dtDlg').open || $('fcDlg').open; }
+  function dialogOpen() { return $('dlg').open || $('delDlg').open || $('srvDlg').open || $('wsDlg').open || $('grpDlg').open || $('askDlg').open || $('rmDlg').open || $('dtDlg').open || $('fcDlg').open; }
 
   var lastStateKey = '';
 
@@ -1968,6 +2006,115 @@
     }).catch(function (e) { $('srvErr').textContent = e.message; });
   }
 
+  // ---------- 隔离区同步 ----------
+  var ws = { server: '', rows: [], pick: '', defaults: { remoteDir: 'sync', ignore: [], mode: 'two-way-safe' } };
+  var WS_STATE = { running: '运行中', stopped: '已停止', failed: '失败', starting: '启动中', stopping: '停止中', provisioning: '创建中' };
+
+  function wsError(text) { $('wErr').textContent = text || ''; }
+
+  function renderWsLinked() {
+    return api('/api/workspaces').then(function (r) {
+      var used = {};
+      sessions.forEach(function (x) { used[x.host] = (used[x.host] || 0) + 1; });
+      $('wLinked').innerHTML = r.workspaces.length
+        ? r.workspaces.map(function (w) {
+          var n = used[w.alias];
+          return '<div class="srv-row"><span class="srv-dot" style="--h:' + hue(w.alias) + '"></span><div class="grow"><b>' + esc(w.id) + '</b> <span class="tag">' + esc(w.server) + '</span>' +
+            (n ? ' <span class="tag">' + n + ' 个同步会话</span>' : '') +
+            '<div class="sub">' + esc(w.alias + ' → ' + w.user + '@' + w.address + ':' + w.port) + '</div></div>' +
+            '<button class="compact danger" data-ws="remove" data-alias="' + esc(w.alias) + '">移除</button></div>';
+        }).join('')
+        : '<div class="srv-empty">还没有添加过隔离区。</div>';
+    });
+  }
+
+  function renderWsList() {
+    var box = $('wList');
+    if (!ws.server) { box.innerHTML = '<div class="srv-empty">还没有服务器,请先到"更多 → 服务器管理"添加。</div>'; return; }
+    if (!ws.rows.length) { box.innerHTML = '<div class="srv-empty">这台服务器上还没有隔离区。</div>'; return; }
+    box.innerHTML = ws.rows.map(function (w) {
+      var pick = ws.pick === w.id;
+      return '<div class="srv-row"><div class="grow"><b>' + esc(w.id) + '</b> <span class="tag">' + esc(WS_STATE[w.state] || w.state) + '</span>' +
+        (w.alias ? ' <span class="tag">已添加</span>' : '') +
+        '<div class="sub">' + (w.channel ? '文件通道在线' : '文件通道未启动(隔离区启动后自动开启)') + '</div></div>' +
+        '<button class="compact' + (pick ? ' primary' : '') + '" data-ws="pick" data-id="' + esc(w.id) + '">' + (pick ? '已选择' : '选择') + '</button></div>';
+    }).join('');
+  }
+
+  function showWsForm() {
+    $('wForm').hidden = !ws.pick;
+    $('wCreate').disabled = !ws.pick;
+    if (ws.pick) $('wFormTitle').textContent = '2. 要同步的文件夹(' + ws.pick + ')';
+  }
+
+  function loadWsList() {
+    ws.rows = []; ws.pick = '';
+    showWsForm();
+    wsError('');
+    if (!ws.server) { renderWsList(); return Promise.resolve(); }
+    $('wList').innerHTML = '<div class="srv-empty">读取中…</div>';
+    return api('/api/workspaces/list?server=' + encodeURIComponent(ws.server)).then(function (r) {
+      ws.defaults = r.defaults || ws.defaults;
+      if (!r.ok) { $('wList').innerHTML = ''; wsError(r.out); return; }
+      ws.rows = r.workspaces;
+      // 只有一个隔离区时直接选上,少点一下
+      if (ws.rows.length === 1) ws.pick = ws.rows[0].id;
+      renderWsList();
+      showWsForm();
+      if (!$('wMode').value) $('wMode').value = ws.defaults.mode;
+      if (!$('wIgnore').value) $('wIgnore').value = (ws.defaults.ignore || []).join('\n');
+      $('wRemote').placeholder = ws.defaults.remoteDir || 'sync';
+    }).catch(function (e) { $('wList').innerHTML = ''; wsError(e.message); });
+  }
+
+  function openWorkspaces() {
+    wsError('');
+    $('wLocal').value = ''; $('wRemote').value = '';
+    $('wIgnore').value = '';
+    $('wMode').value = 'two-way-safe';
+    api('/api/servers').then(function (list) {
+      serverList = list;
+      var sel = $('wServer');
+      sel.innerHTML = list.servers.map(function (s) { return '<option value="' + esc(s.alias) + '">' + esc(s.alias + '(' + s.user + '@' + s.host + ')') + '</option>'; }).join('');
+      ws.server = list.servers.length ? sel.value : '';
+      $('wsDlg').showModal();
+      return Promise.all([renderWsLinked(), loadWsList()]);
+    }).catch(function (e) { log('读取服务器列表失败:' + e.message); toast('读取服务器列表失败'); });
+  }
+
+  function createWorkspaceSync() {
+    var local = $('wLocal').value.trim();
+    if (!ws.pick) { wsError('请先选一个隔离区。'); return; }
+    if (!local) { wsError('请填写本地文件夹。'); $('wLocal').focus(); return; }
+    var btn = $('wCreate');
+    btn.disabled = true; btn.textContent = '创建中…';
+    wsError('');
+    api('/api/workspaces/sync', {
+      server: ws.server, id: ws.pick, local: local, remote: $('wRemote').value.trim(), mode: $('wMode').value,
+      ignore: $('wIgnore').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean)
+    }).then(function (r) {
+      log(r.out);
+      if (!r.ok) { wsError(r.out); return; }
+      toast('已创建同步会话');
+      $('wLocal').value = ''; $('wRemote').value = '';
+      return Promise.all([renderWsLinked(), loadWsList()]).then(function () { refresh(); });
+    }).catch(function (e) { wsError(e.message); })
+      .then(function () { btn.textContent = '创建并开始同步'; showWsForm(); });
+  }
+
+  function removeWorkspace(alias) {
+    ask({ title: '移除隔离区「' + alias + '」', text: '只删除面板里的记录、~/.ssh/config 里面板写的那一段,并尽量撤销服务器上这把公钥;隔离区里的文件不动。', ok: '移除', danger: true })
+      .then(function (v) {
+        if (v === null) return;
+        wsError('');
+        return api('/api/workspaces/delete', { alias: alias }).then(function (r) {
+          if (!r.ok) { wsError(r.out); return; }
+          toast('已移除'); log(r.out);
+          return renderWsLinked();
+        });
+      }).catch(function (e) { wsError(e.message); });
+  }
+
   // ---------- 分组管理 ----------
   function saveGroups(cfg, nextGroups, nextSessions, doneText) {
     return saveConfig({ host: cfg.host, groups: nextGroups, sessions: nextSessions }, doneText);
@@ -2154,6 +2301,7 @@
       else if (ui === 'conflicts') openConflicts(b.getAttribute('data-id'));
       else if (ui === 'groups') openGroups();
       else if (ui === 'servers') openServers();
+      else if (ui === 'workspaces') openWorkspaces();
       else if (ui === 'host') editHost();
       else if (ui === 'delete') openDelete(b.getAttribute('data-id'));
       else loadConfig().then(function (cfg) { openDialog(cfg, ui === 'edit' ? b.getAttribute('data-id') : null); })
@@ -2265,6 +2413,23 @@
   });
   $('dtRule').addEventListener('click', function () { if (dt.dir) copyText('/' + dt.dir, '已复制排除规则 /' + dt.dir); });
   $('dtCopyRaw').addEventListener('click', function () { copyText($('dtRaw').textContent, '已复制'); });
+  $('wServer').addEventListener('change', function () { ws.server = this.value; loadWsList(); });
+  $('wCreate').addEventListener('click', createWorkspaceSync);
+  $('wClose').addEventListener('click', function () { $('wsDlg').close(); });
+  $('wsDlg').addEventListener('close', refresh);
+  $('wList').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-ws="pick"]');
+    if (!b || b.disabled) return;
+    ws.pick = b.getAttribute('data-id');
+    renderWsList(); showWsForm();
+  });
+  $('wLinked').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-ws="remove"]');
+    if (b && !b.disabled) removeWorkspace(b.getAttribute('data-alias'));
+  });
+  $('wsDlg').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type === 'text') { e.preventDefault(); createWorkspaceSync(); }
+  });
   $('srvSave').addEventListener('click', saveServer);
   $('srvClose').addEventListener('click', function () { $('srvDlg').close(); });
   $('srvReset').addEventListener('click', resetServerForm);
