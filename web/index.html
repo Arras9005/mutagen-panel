@@ -796,8 +796,13 @@
 <script>
 (function () {
   var qs = new URLSearchParams(location.search);
-  var token = qs.get('token') || sessionStorage.getItem('panel-token') || '';
-  if (qs.get('token')) { sessionStorage.setItem('panel-token', token); history.replaceState(null, '', location.pathname); }
+  // 令牌记在浏览器里(同一台电脑、同一个地址):之后不带 ?token= 的链接(比如管理页面上的「文件同步」快捷方式)也能直接打开
+  function stored() { try { return localStorage.getItem('panel-token') || sessionStorage.getItem('panel-token') || ''; } catch (e) { return ''; } }
+  var token = qs.get('token') || stored();
+  if (qs.get('token')) {
+    try { localStorage.setItem('panel-token', token); sessionStorage.setItem('panel-token', token); } catch (e) { /* 浏览器禁用存储时只在这次页面里有效 */ }
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
 
   var busy = false;
   var sessions = [];
@@ -2122,7 +2127,7 @@
   }
 
   // ---------- 隔离区同步 ----------
-  var ws = { server: '', rows: [], pick: '', defaults: { remoteDir: 'data', ignore: [], mode: 'two-way-safe' } };
+  var ws = { server: '', rows: [], pick: '', want: '', defaults: { remoteDir: 'data', ignore: [], mode: 'two-way-safe' } };
   var WS_STATE = { running: '运行中', stopped: '已停止', failed: '失败', starting: '启动中', stopping: '停止中', provisioning: '创建中' };
 
   function wsError(text) { $('wErr').textContent = text || ''; }
@@ -2166,8 +2171,10 @@
       ws.defaults = r.defaults || ws.defaults;
       if (!r.ok) { $('wList').innerHTML = ''; wsError(r.out); return; }
       ws.rows = r.workspaces;
-      // 只有一个隔离区时直接选上,少点一下
-      if (ws.rows.length === 1) ws.pick = ws.rows[0].id;
+      // 从管理页面的「文件同步」点过来(#ws=ws02)就选那一套;否则只有一个隔离区时直接选上,少点一下
+      if (ws.want && ws.rows.some(function (x) { return x.id === ws.want; })) ws.pick = ws.want;
+      else if (ws.rows.length === 1) ws.pick = ws.rows[0].id;
+      ws.want = '';
       renderWsList();
       showWsForm();
       if (!$('wIgnore').value) $('wIgnore').value = (ws.defaults.ignore || []).join('\n');
@@ -2175,7 +2182,8 @@
     }).catch(function (e) { $('wList').innerHTML = ''; wsError(e.message); });
   }
 
-  function openWorkspaces() {
+  function openWorkspaces(want) {
+    ws.want = want || '';
     wsError('');
     $('wLocal').value = ''; $('wRemote').value = '';
     $('wIgnore').value = '';
@@ -2577,6 +2585,13 @@
   document.addEventListener('visibilitychange', refresh);
 
   poll();
+
+  // 从隔离工作区管理页面的卡片点「文件同步」过来:地址是 …/#ws=ws02,直接打开隔离区同步并选中这一套
+  var deep = /^#ws=(ws0[1-8])$/.exec(location.hash);
+  if (deep) {
+    history.replaceState(null, '', location.pathname);
+    openWorkspaces(deep[1]);
+  }
 })();
 </script>
 </body>

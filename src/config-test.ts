@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { defaultConfig, parseConfig, repairSessionNames, resolveConfigFile, serializeConfig } from "./config.js";
+import { defaultConfig, ensureToken, loadConfig, parseConfig, repairSessionNames, resolveConfigFile, saveConfig, serializeConfig } from "./config.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
 
 const session = (overrides: Record<string, unknown> = {}) => ({
   id: "view",
@@ -93,5 +96,25 @@ assert.equal(JSON.parse(groupedText).sessions[1].group, undefined);
 assert.deepEqual(parseConfig(JSON.parse(groupedText)).groups, ["开发", "测试"]);
 assert.throws(() => parseConfig(base([session()], { groups: ["a", "A"] })), /不能重复/);
 assert.deepEqual(parseConfig(base([session()])).groups, []);
+
+
+// 令牌:没有就生成并存进配置,下次启动还是同一个;已有的不改
+{
+  const dir = mkdtempSync(joinPath(tmpdir(), "token-"));
+  try {
+    const file = joinPath(dir, "config.json");
+    saveConfig(file, defaultConfig());
+    const first = ensureToken(loadConfig(file), file);
+    assert.match(first, /^[a-f0-9]{32}$/);
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).token, first);
+    assert.equal(ensureToken(loadConfig(file), file), first);               // 重启后不变
+    saveConfig(file, { ...defaultConfig(), token: "fixed-by-user" });
+    assert.equal(ensureToken(loadConfig(file), file), "fixed-by-user");     // 用户自己写的不动
+    // 存不了(目录不存在)时这次照用
+    assert.match(ensureToken(defaultConfig(), joinPath(dir, "no", "such", "config.json")), /^[a-f0-9]{32}$/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 console.log("config-test: ok");

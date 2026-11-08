@@ -255,6 +255,21 @@ export function parseConfig(raw: unknown): PanelConfig {
   };
 }
 
+/**
+ * 访问令牌:配置里有就用;没有就生成一个存进配置(权限 0600)。令牌固定下来,浏览器记住它之后,
+ * 不带 ?token= 的链接(比如隔离工作区管理页面上的「文件同步」快捷方式)也能直接打开。存不了(只读目录等)时这次照用,下次再生成。
+ */
+export function ensureToken(config: PanelConfig, file: string): string {
+  if (config.token) return config.token;
+  const token = randomBytes(16).toString("hex");
+  try {
+    saveConfig(file, { ...config, token });
+  } catch {
+    // 保存失败不影响这次运行
+  }
+  return token;
+}
+
 /** 首次运行时写入的默认配置:没有服务器和会话,打开页面后再添加。 */
 export function defaultConfig(): PanelConfig {
   return { mutagen: "mutagen", host: "", port: 8765, openBrowser: true, servers: [], workspaces: [], groups: [], sessions: [] };

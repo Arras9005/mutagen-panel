@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Panel, type ActionRequest } from "./actions.js";
 import { listLocal, makeLocalFolder, removeLocalFolder } from "./localfs.js";
-import { ensureConfig, loadConfig, resolveConfigFile, type PanelConfig } from "./config.js";
+import { ensureConfig, ensureToken, loadConfig, resolveConfigFile, type PanelConfig } from "./config.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -63,8 +63,9 @@ const portArg = optionValue("--port");
 const listenPort = portArg === undefined ? config.port : Number(portArg);
 if (!Number.isInteger(listenPort) || listenPort < 1 || listenPort > 65535) exitWith("--port 必须是 1-65535 的整数");
 const shouldOpenBrowser = config.openBrowser && !hasFlag("--no-open");
+const token = ensureToken(config, configFile);
+config.token = token;
 const panel = new Panel(config, configFile);
-const token = config.token ?? randomBytes(16).toString("hex");
 const allowedHosts = [`127.0.0.1:${listenPort}`, `localhost:${listenPort}`];
 
 function send(res: ServerResponse, status: number, body: unknown, type = "application/json; charset=utf-8"): void {
