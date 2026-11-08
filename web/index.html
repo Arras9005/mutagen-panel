@@ -2003,10 +2003,40 @@
     $('srvErr').textContent = '';
   }
 
-  function openServers() {
+  function openServers(prefill) {
     resetServerForm();
-    renderServers().then(function () { $('srvDlg').showModal(); $('sAlias').focus(); })
-      .catch(function (e) { log('读取服务器列表失败:' + e.message); toast('读取服务器列表失败'); });
+    renderServers().then(function () {
+      // 从隔离工作区管理页面点「文件同步」过来、这台服务器还没添加:地址和端口已经填好,用户名固定 root,只剩输入密码
+      if (prefill) {
+        $('sAlias').value = prefill.alias; $('sUser').value = 'root'; $('sHost').value = prefill.host; $('sPort').value = String(prefill.port);
+        $('srvFormTitle').textContent = '添加服务器(地址已填好,只需输入 root 密码)';
+      }
+      $('srvDlg').showModal();
+      (prefill ? $('sPass') : $('sAlias')).focus();
+    }).catch(function (e) { log('读取服务器列表失败:' + e.message); toast('读取服务器列表失败'); });
+  }
+
+  // 链接里 #ws=ws02&host=…&port=… 的处理(从隔离工作区管理页面的「文件同步」点过来):
+  // 服务器已经添加 → 直接打开隔离区同步并选中那一套;还没添加 → 弹出填好地址的「添加服务器」,添加成功后自动接着打开。
+  var pendingWs = '';
+
+  function freeAlias(taken) {
+    var base = 'vps', n = 1, name = base;
+    while (taken.some(function (a) { return a.toLowerCase() === name; })) { n += 1; name = base + '-' + n; }
+    return name;
+  }
+
+  function handleDeepLink(wsId, host, port) {
+    return api('/api/servers').then(function (list) {
+      serverList = list;
+      var known = host ? list.servers.filter(function (s) { return s.host.toLowerCase() === host.toLowerCase() && Number(s.port) === port; })[0] : null;
+      if (host && !known) {
+        pendingWs = wsId;
+        openServers({ alias: freeAlias(list.aliases), host: host, port: port });
+        return;
+      }
+      if (wsId) openWorkspaces(wsId, known ? known.alias : '');
+    }).catch(function (e) { log('读取服务器列表失败:' + e.message); });
   }
 
   function editServer(alias) {
@@ -2037,7 +2067,15 @@
       log('服务器 ' + body.alias + ':' + r.out);
       toast('服务器已保存');
       resetServerForm();
-      return renderServers();
+      return renderServers().then(function () {
+        // 是从管理页面的「文件同步」带着隔离区编号过来添加的:关掉这个窗口,接着打开隔离区同步并选中它
+        if (pendingWs) {
+          var next = pendingWs;
+          pendingWs = '';
+          $('srvDlg').close();
+          openWorkspaces(next, body.alias);
+        }
+      });
     }).catch(function (e) { $('srvErr').textContent = e.message; })
       .then(function () { btn.disabled = false; btn.textContent = '连接并保存'; });
   }
@@ -2182,7 +2220,7 @@
     }).catch(function (e) { $('wList').innerHTML = ''; wsError(e.message); });
   }
 
-  function openWorkspaces(want) {
+  function openWorkspaces(want, serverAlias) {
     ws.want = want || '';
     wsError('');
     $('wLocal').value = ''; $('wRemote').value = '';
@@ -2192,6 +2230,7 @@
       serverList = list;
       var sel = $('wServer');
       sel.innerHTML = list.servers.map(function (x) { return '<option value="' + esc(x.alias) + '">' + esc(x.alias) + '</option>'; }).join('');
+      if (serverAlias && list.servers.some(function (x) { return x.alias === serverAlias; })) sel.value = serverAlias;
       ws.server = list.servers.length ? sel.value : '';
       $('wServerRow').hidden = list.servers.length < 2;
       $('wsDlg').showModal();
@@ -2563,6 +2602,7 @@
   });
   $('srvSave').addEventListener('click', saveServer);
   $('srvClose').addEventListener('click', function () { $('srvDlg').close(); });
+  $('srvDlg').addEventListener('close', function () { pendingWs = ''; });
   $('srvReset').addEventListener('click', resetServerForm);
   $('sShow').addEventListener('click', function () {
     var show = $('sPass').type === 'password';
@@ -2586,11 +2626,14 @@
 
   poll();
 
-  // 从隔离工作区管理页面的卡片点「文件同步」过来:地址是 …/#ws=ws02,直接打开隔离区同步并选中这一套
-  var deep = /^#ws=(ws0[1-8])$/.exec(location.hash);
-  if (deep) {
+  // 从隔离工作区管理页面点「文件同步」过来:地址是 …/#ws=ws02&host=1.2.3.4&port=22(都可省略,都先校验)
+  var dp = new URLSearchParams(location.hash.replace(/^#/, ''));
+  var dWs = /^ws0[1-8]$/.test(dp.get('ws') || '') ? dp.get('ws') : '';
+  var dHost = /^[A-Za-z0-9][A-Za-z0-9.:_-]{0,252}$/.test(dp.get('host') || '') ? dp.get('host') : '';
+  var dPort = /^\d{1,5}$/.test(dp.get('port') || '') && Number(dp.get('port')) >= 1 && Number(dp.get('port')) <= 65535 ? Number(dp.get('port')) : 22;
+  if (dWs || dHost) {
     history.replaceState(null, '', location.pathname);
-    openWorkspaces(deep[1]);
+    handleDeepLink(dWs, dHost, dPort);
   }
 })();
 </script>
