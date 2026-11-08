@@ -17,8 +17,8 @@ export const CTL = "/usr/local/sbin/workspace-ctl";
 export const WORKSPACE_ID = /^ws0[1-8]$/;
 /** 隔离区同步默认排除的东西:体积大、可再生、或各自系统专有的文件 */
 export const DEFAULT_IGNORE = ["node_modules", "__pycache__/", ".cache/", "*.log", ".DS_Store", "Thumbs.db"];
-/** 默认同步的目录(相对工作区家目录) */
-export const DEFAULT_REMOTE_DIR = "sync";
+/** 默认同步的目录(相对工作区家目录):每套工作区创建时就有的 data 目录(只有这个用户能进) */
+export const DEFAULT_REMOTE_DIR = "data";
 
 export interface FilesInfo {
   unit?: { active?: string };

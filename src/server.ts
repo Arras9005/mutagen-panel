@@ -6,6 +6,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Panel, type ActionRequest } from "./actions.js";
+import { listLocal, makeLocalFolder, removeLocalFolder } from "./localfs.js";
 import { ensureConfig, loadConfig, resolveConfigFile, type PanelConfig } from "./config.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -150,6 +151,20 @@ const server = createServer(async (req, res) => {
       if (req.method === "GET" && pathname === "/api/remote-ls") {
         const query = new URL(req.url ?? "/", "http://localhost").searchParams;
         send(res, 200, await panel.browseRemote(query.get("host") ?? "", query.get("path") ?? "~"));
+        return;
+      }
+      if (req.method === "GET" && pathname === "/api/local/ls") {
+        send(res, 200, listLocal(new URL(req.url ?? "/", "http://localhost").searchParams.get("path") ?? ""));
+        return;
+      }
+      if (req.method === "POST" && pathname === "/api/local/mkdir") {
+        const body = JSON.parse((await readBody(req)) || "{}") as { parent?: unknown; name?: unknown };
+        send(res, 200, makeLocalFolder(String(body.parent ?? ""), String(body.name ?? "")));
+        return;
+      }
+      if (req.method === "POST" && pathname === "/api/local/rmdir") {
+        const body = JSON.parse((await readBody(req)) || "{}") as { path?: unknown };
+        send(res, 200, removeLocalFolder(String(body.path ?? "")));
         return;
       }
       if (req.method === "GET" && pathname === "/api/workspaces") {

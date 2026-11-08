@@ -6,13 +6,6 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-if not exist config.json (
-  copy config.example.json config.json >nul
-  echo config.json created. Edit it, save, then run start.bat again.
-  notepad config.json
-  pause
-  exit /b 0
-)
 if not exist node_modules\ssh2 (
   echo Installing dependencies, first run only...
   call npm install

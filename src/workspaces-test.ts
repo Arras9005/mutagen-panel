@@ -32,7 +32,7 @@ assert.equal(mergeKnownHosts(two, "a", null), `b ${key}B\n`);
 assert.equal(mergeKnownHosts(mergeKnownHosts("", "a", key), "a", null), "");
 
 // ---- 目录:只能在家目录里
-assert.equal(resolveRemoteDir("ws02", ""), "/home/ws02/sync");
+assert.equal(resolveRemoteDir("ws02", ""), "/home/ws02/data");
 assert.equal(resolveRemoteDir("ws02", "proj/a"), "/home/ws02/proj/a");
 assert.equal(resolveRemoteDir("ws02", "/home/ws02/x/"), "/home/ws02/x");
 assert.equal(resolveRemoteDir("ws02", "/home/ws02"), "/home/ws02");
